@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- 定义日志输出格式中的时间格式 -->
+    <property name="LOG_DATEFORMAT_PATTERN" value="yyyy-MM-dd HH:mm:ss.SSS"/>
+    
+    <!-- 定义控制台日志输出格式 -->
+    <property name="CONSOLE_LOG_PATTERN" 
+              value="%d{${LOG_DATEFORMAT_PATTERN}} %highlight(%-5level) [%thread] %cyan(%logger{36}) - %msg%n"/>
+    
+    <!-- 控制台输出 -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${CONSOLE_LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+    
+    <!-- 根日志级别 -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+    
+    <!-- 可选：为特定包设置日志级别 -->
+    <logger name="com.monitor.backend" level="DEBUG"/>
+    <logger name="org.springframework" level="INFO"/>
+    <logger name="org.mybatis" level="INFO"/>
+</configuration>

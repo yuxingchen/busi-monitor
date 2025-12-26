@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.monitor.backend.mapper.DashboardWidgetMapper">
+
+    <resultMap id="BaseResultMap" type="com.monitor.backend.entity.DashboardWidget">
+        <id column="id" property="id"/>
+        <result column="dashboard_id" property="dashboardId"/>
+        <result column="widget_type" property="widgetType"/>
+        <result column="source_id" property="sourceId"/>
+        <result column="title" property="title"/>
+        <result column="grid_x" property="gridX"/>
+        <result column="grid_y" property="gridY"/>
+        <result column="grid_w" property="gridW"/>
+        <result column="grid_h" property="gridH"/>
+        <result column="display_config" property="displayConfig"/>
+        <result column="z_index" property="zIndex"/>
+        <result column="create_time" property="createTime"/>
+        <result column="source_name" property="sourceName"/>
+        <result column="source_result_type" property="sourceResultType"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, dashboard_id, widget_type, source_id, title, grid_x, grid_y, grid_w, grid_h, display_config, z_index, create_time
+    </sql>
+
+    <select id="findByDashboardId" resultMap="BaseResultMap">
+        SELECT w.id, w.dashboard_id, w.widget_type, w.source_id, w.title,
+               w.grid_x, w.grid_y, w.grid_w, w.grid_h, w.display_config, w.z_index, w.create_time,
+               t.name as source_name, t.result_type as source_result_type
+        FROM monitor_dashboard_widget w
+        LEFT JOIN monitor_task t ON w.source_id = t.id AND w.widget_type = 'TASK'
+        WHERE w.dashboard_id = #{dashboardId}
+        ORDER BY w.z_index, w.id
+    </select>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM monitor_dashboard_widget
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO monitor_dashboard_widget(dashboard_id, widget_type, source_id, title,
+                                             grid_x, grid_y, grid_w, grid_h, display_config, z_index)
+        VALUES(#{dashboardId}, #{widgetType}, #{sourceId}, #{title},
+               #{gridX}, #{gridY}, #{gridW}, #{gridH}, #{displayConfig}, #{zIndex})
+    </insert>
+
+    <update id="update">
+        UPDATE monitor_dashboard_widget
+        SET widget_type = #{widgetType}, source_id = #{sourceId}, title = #{title},
+            grid_x = #{gridX}, grid_y = #{gridY}, grid_w = #{gridW}, grid_h = #{gridH},
+            display_config = #{displayConfig}, z_index = #{zIndex}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM monitor_dashboard_widget WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteByDashboardId">
+        DELETE FROM monitor_dashboard_widget WHERE dashboard_id = #{dashboardId}
+    </delete>
+
+    <insert id="batchInsert">
+        INSERT INTO monitor_dashboard_widget(dashboard_id, widget_type, source_id, title,
+                                             grid_x, grid_y, grid_w, grid_h, display_config, z_index)
+        VALUES
+        <foreach collection="widgets" item="w" separator=",">
+            (#{w.dashboardId}, #{w.widgetType}, #{w.sourceId}, #{w.title},
+             #{w.gridX}, #{w.gridY}, #{w.gridW}, #{w.gridH}, #{w.displayConfig}, #{w.zIndex})
+        </foreach>
+    </insert>
+
+</mapper>

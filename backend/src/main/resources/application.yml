@@ -1,0 +1,67 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: busi-monitor-backend
+  datasource:
+    # 默认连接本地 MySQL，请修改为实际配置
+    url: jdbc:mysql://localhost:3306/busi_monitor?useUnicode=true&characterEncoding=utf-8&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&serverTimezone=GMT%2B8
+    username:
+    password:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:sql/schema.sql
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+# Jackson 时间序列化配置
+spring.jackson:
+  date-format: yyyy-MM-dd HH:mm:ss
+  time-zone: GMT+8
+  serialization:
+    write-dates-as-timestamps: false
+
+# Spring Batch 配置
+spring.batch:
+  job:
+    enabled: false # 禁止自动运行Job，通过API手动触发
+  jdbc:
+    initialize-schema: always # 自动创建Batch元数据表
+    table-prefix: BATCH_
+
+# ==================== 中间缓存配置 ====================
+monitor:
+  cache:
+    # 缓存策略：FILE / REDIS / ES / TEMP_TABLE
+    strategy: FILE
+    # 本地文件缓存配置
+    file:
+      base-path: /Users/yux/Documents/WorkSpace/busi-monitor/cache
+      compress: true # 是否启用GZIP压缩
+      ttl-hours: 24 # 缓存过期时间（小时）
+    # Redis缓存配置（strategy=REDIS时启用）
+    redis:
+      key-prefix: busi-monitor:cache
+      ttl-seconds: 3600
+    # Elasticsearch缓存配置（strategy=ES时启用）
+    elasticsearch:
+      hosts: localhost:9200
+      index-prefix: busi-monitor-cache-
+
+# ==================== 安全配置 ====================
+# JWT Token配置
+jwt:
+  secret-key: jigMmXgvzdHvkQ3SGc33+NNShufvmaOKSL+nZSs4Yzu/c8sUDj/eUdcdqciERIVF
+  expiration-hours: 24
+
+# 数据加密配置
+encryption:
+  secret-key: 04cc6f7ed7c9a0705cf617bc714a6910
+  # 前端传输加密密钥（前后端共享）
+  transmit-key: busi-monitor-transmit-2025-secure

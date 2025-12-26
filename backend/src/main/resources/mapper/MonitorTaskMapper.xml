@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.monitor.backend.mapper.MonitorTaskMapper">
+
+    <resultMap id="BaseResultMap" type="com.monitor.backend.entity.MonitorTask">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="datasource_id" property="datasourceId"/>
+        <result column="sql_script" property="sqlScript"/>
+        <result column="cron_expression" property="cronExpression"/>
+        <result column="is_active" property="isActive"/>
+        <result column="result_type" property="resultType"/>
+        <result column="alarm_threshold_rule" property="alarmThresholdRule"/>
+        <result column="chart_config" property="chartConfig"/>
+        <result column="is_store_data" property="isStoreData"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, name, datasource_id, sql_script, cron_expression, is_active, result_type,
+        alarm_threshold_rule, chart_config, is_store_data, create_time, update_time
+    </sql>
+
+    <select id="findAll" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM monitor_task
+    </select>
+
+    <select id="findAllActive" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM monitor_task
+        WHERE is_active = 1
+    </select>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM monitor_task
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO monitor_task(name, datasource_id, sql_script, cron_expression, is_active, result_type,
+                                 alarm_threshold_rule, chart_config, is_store_data, create_time, update_time)
+        VALUES(#{name}, #{datasourceId}, #{sqlScript}, #{cronExpression}, #{isActive}, #{resultType},
+               #{alarmThresholdRule}, #{chartConfig}, #{isStoreData}, #{createTime}, #{updateTime})
+    </insert>
+
+    <update id="update">
+        UPDATE monitor_task
+        SET name = #{name}, datasource_id = #{datasourceId}, sql_script = #{sqlScript},
+            cron_expression = #{cronExpression}, is_active = #{isActive}, result_type = #{resultType},
+            alarm_threshold_rule = #{alarmThresholdRule}, chart_config = #{chartConfig},
+            is_store_data = #{isStoreData}, update_time = #{updateTime}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM monitor_task WHERE id = #{id}
+    </delete>
+
+</mapper>

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.monitor.backend.mapper.DashboardMapper">
+
+    <resultMap id="BaseResultMap" type="com.monitor.backend.entity.Dashboard">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="grid_cols" property="gridCols"/>
+        <result column="grid_rows" property="gridRows"/>
+        <result column="cell_height" property="cellHeight"/>
+        <result column="widget_margin" property="widgetMargin"/>
+        <result column="background_config" property="backgroundConfig"/>
+        <result column="is_default" property="isDefault"/>
+        <result column="is_active" property="isActive"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, name, grid_cols, grid_rows, cell_height, widget_margin, background_config,
+        is_default, is_active, create_time, update_time
+    </sql>
+
+    <select id="findAll" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM monitor_dashboard
+        WHERE is_active = 1
+        ORDER BY is_default DESC, id
+    </select>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM monitor_dashboard
+        WHERE id = #{id}
+    </select>
+
+    <select id="findDefault" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM monitor_dashboard
+        WHERE is_default = 1
+        LIMIT 1
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO monitor_dashboard(name, grid_cols, grid_rows, cell_height, background_config, is_default, is_active)
+        VALUES(#{name}, #{gridCols}, #{gridRows}, #{cellHeight}, #{backgroundConfig}, #{isDefault}, #{isActive})
+    </insert>
+
+    <update id="update">
+        UPDATE monitor_dashboard
+        SET name = #{name}, grid_cols = #{gridCols}, grid_rows = #{gridRows},
+            cell_height = #{cellHeight}, background_config = #{backgroundConfig},
+            is_default = #{isDefault}, is_active = #{isActive}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM monitor_dashboard WHERE id = #{id}
+    </delete>
+
+    <update id="clearOtherDefaults">
+        UPDATE monitor_dashboard SET is_default = 0 WHERE id != #{id}
+    </update>
+
+</mapper>

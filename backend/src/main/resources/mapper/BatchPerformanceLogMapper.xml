@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.monitor.backend.mapper.BatchPerformanceLogMapper">
+
+    <resultMap id="BaseResultMap" type="com.monitor.backend.entity.BatchPerformanceLog">
+        <id column="id" property="id"/>
+        <result column="job_name" property="jobName"/>
+        <result column="execution_id" property="executionId"/>
+        <result column="step_name" property="stepName"/>
+        <result column="partition_id" property="partitionId"/>
+        <result column="status" property="status"/>
+        <result column="start_time" property="startTime"/>
+        <result column="end_time" property="endTime"/>
+        <result column="duration_ms" property="durationMs"/>
+        <result column="read_count" property="readCount"/>
+        <result column="write_count" property="writeCount"/>
+        <result column="skip_count" property="skipCount"/>
+        <result column="records_per_second" property="recordsPerSecond"/>
+        <result column="cache_strategy" property="cacheStrategy"/>
+        <result column="cache_key" property="cacheKey"/>
+        <result column="data_source_ids" property="dataSourceIds"/>
+        <result column="error_message" property="errorMessage"/>
+        <result column="extra_info" property="extraInfo"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <select id="findByExecutionId" resultMap="BaseResultMap">
+        SELECT * FROM batch_performance_log WHERE execution_id = #{executionId} ORDER BY start_time
+    </select>
+
+    <select id="findByJobNameAndTimeRange" resultMap="BaseResultMap">
+        SELECT * FROM batch_performance_log
+        WHERE job_name = #{jobName}
+          AND start_time BETWEEN #{startTime} AND #{endTime}
+        ORDER BY start_time
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO batch_performance_log
+        (job_name, execution_id, step_name, partition_id, status, start_time, end_time,
+         duration_ms, read_count, write_count, skip_count, records_per_second,
+         cache_strategy, cache_key, data_source_ids, error_message, extra_info)
+        VALUES
+        (#{jobName}, #{executionId}, #{stepName}, #{partitionId}, #{status}, #{startTime}, #{endTime},
+         #{durationMs}, #{readCount}, #{writeCount}, #{skipCount}, #{recordsPerSecond},
+         #{cacheStrategy}, #{cacheKey}, #{dataSourceIds}, #{errorMessage}, #{extraInfo})
+    </insert>
+
+    <insert id="batchInsert">
+        INSERT INTO batch_performance_log
+        (job_name, execution_id, step_name, partition_id, status, start_time, end_time,
+         duration_ms, read_count, write_count, skip_count, records_per_second,
+         cache_strategy, cache_key, data_source_ids, error_message, extra_info)
+        VALUES
+        <foreach collection="logs" item="log" separator=",">
+            (#{log.jobName}, #{log.executionId}, #{log.stepName}, #{log.partitionId}, #{log.status},
+             #{log.startTime}, #{log.endTime}, #{log.durationMs}, #{log.readCount}, #{log.writeCount},
+             #{log.skipCount}, #{log.recordsPerSecond}, #{log.cacheStrategy}, #{log.cacheKey},
+             #{log.dataSourceIds}, #{log.errorMessage}, #{log.extraInfo})
+        </foreach>
+    </insert>
+
+    <select id="getStatsByExecutionId" resultMap="BaseResultMap">
+        SELECT 
+            job_name,
+            execution_id,
+            MIN(start_time) as start_time,
+            MAX(end_time) as end_time,
+            SUM(duration_ms) as duration_ms,
+            SUM(read_count) as read_count,
+            SUM(write_count) as write_count,
+            SUM(skip_count) as skip_count,
+            AVG(records_per_second) as records_per_second,
+            GROUP_CONCAT(DISTINCT status) as status
+        FROM batch_performance_log
+        WHERE execution_id = #{executionId}
+        GROUP BY job_name, execution_id
+    </select>
+
+</mapper>

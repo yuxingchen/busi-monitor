@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.monitor.backend.mapper.MonitorRecordMapper">
+
+    <resultMap id="BaseResultMap" type="com.monitor.backend.entity.MonitorRecord">
+        <id column="id" property="id"/>
+        <result column="task_id" property="taskId"/>
+        <result column="execution_time" property="executionTime"/>
+        <result column="is_success" property="isSuccess"/>
+        <result column="error_message" property="errorMessage"/>
+        <result column="result_number" property="resultNumber"/>
+        <result column="result_json" property="resultJson"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, task_id, execution_time, is_success, error_message, result_number, result_json
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO monitor_record(task_id, execution_time, is_success, error_message, result_number, result_json)
+        VALUES(#{taskId}, #{executionTime}, #{isSuccess}, #{errorMessage}, #{resultNumber}, #{resultJson})
+    </insert>
+
+    <select id="findRecentByTaskId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM monitor_record
+        WHERE task_id = #{taskId}
+        ORDER BY execution_time DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="findLastSuccessTime" resultType="java.time.LocalDateTime">
+        SELECT execution_time
+        FROM monitor_record
+        WHERE task_id = #{taskId} AND is_success = 1
+        ORDER BY execution_time DESC
+        LIMIT 1
+    </select>
+
+</mapper>

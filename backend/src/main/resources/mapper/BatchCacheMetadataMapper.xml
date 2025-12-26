@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.monitor.backend.mapper.BatchCacheMetadataMapper">
+
+    <resultMap id="BaseResultMap" type="com.monitor.backend.entity.BatchCacheMetadata">
+        <id column="id" property="id"/>
+        <result column="cache_key" property="cacheKey"/>
+        <result column="cache_type" property="cacheType"/>
+        <result column="record_count" property="recordCount"/>
+        <result column="size_bytes" property="sizeBytes"/>
+        <result column="schema_info" property="schemaInfo"/>
+        <result column="source_info" property="sourceInfo"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="execution_id" property="executionId"/>
+        <result column="expire_time" property="expireTime"/>
+        <result column="is_expired" property="isExpired"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <select id="findByCacheKey" resultMap="BaseResultMap">
+        SELECT * FROM batch_cache_metadata WHERE cache_key = #{cacheKey}
+    </select>
+
+    <select id="findByExecutionId" resultMap="BaseResultMap">
+        SELECT * FROM batch_cache_metadata WHERE execution_id = #{executionId}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO batch_cache_metadata
+        (cache_key, cache_type, record_count, size_bytes, schema_info, source_info,
+         created_by, execution_id, expire_time, is_expired)
+        VALUES
+        (#{cacheKey}, #{cacheType}, #{recordCount}, #{sizeBytes}, #{schemaInfo}, #{sourceInfo},
+         #{createdBy}, #{executionId}, #{expireTime}, #{isExpired})
+    </insert>
+
+    <update id="update">
+        UPDATE batch_cache_metadata
+        SET cache_type = #{cacheType},
+            record_count = #{recordCount},
+            size_bytes = #{sizeBytes},
+            schema_info = #{schemaInfo},
+            source_info = #{sourceInfo},
+            expire_time = #{expireTime},
+            is_expired = #{isExpired}
+        WHERE id = #{id}
+    </update>
+
+    <insert id="upsertByCacheKey">
+        INSERT INTO batch_cache_metadata
+        (cache_key, cache_type, record_count, size_bytes, schema_info, source_info,
+         created_by, execution_id, expire_time, is_expired)
+        VALUES
+        (#{cacheKey}, #{cacheType}, #{recordCount}, #{sizeBytes}, #{schemaInfo}, #{sourceInfo},
+         #{createdBy}, #{executionId}, #{expireTime}, #{isExpired})
+        ON DUPLICATE KEY UPDATE
+            cache_type = #{cacheType},
+            record_count = #{recordCount},
+            size_bytes = #{sizeBytes},
+            schema_info = #{schemaInfo},
+            source_info = #{sourceInfo},
+            expire_time = #{expireTime},
+            is_expired = #{isExpired}
+    </insert>
+
+    <update id="markExpired">
+        UPDATE batch_cache_metadata SET is_expired = 1 WHERE cache_key = #{cacheKey}
+    </update>
+
+    <delete id="deleteExpired">
+        DELETE FROM batch_cache_metadata WHERE is_expired = 1 AND expire_time &lt; NOW()
+    </delete>
+
+</mapper>

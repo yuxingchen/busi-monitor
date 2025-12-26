@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.monitor.backend.mapper.WorkflowMapper">
+
+    <resultMap id="BaseResultMap" type="com.monitor.backend.entity.Workflow">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="description" property="description"/>
+        <result column="cron_expression" property="cronExpression"/>
+        <result column="is_active" property="isActive"/>
+        <result column="timeout_seconds" property="timeoutSeconds"/>
+        <result column="output_table" property="outputTable"/>
+        <result column="index_fields" property="indexFields"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, name, description, cron_expression, is_active, timeout_seconds, output_table, index_fields, create_time, update_time
+    </sql>
+
+    <select id="findAll" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM monitor_workflow
+        ORDER BY create_time DESC
+    </select>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM monitor_workflow
+        WHERE id = #{id}
+    </select>
+
+    <select id="findActive" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM monitor_workflow
+        WHERE is_active = 1
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO monitor_workflow(name, description, cron_expression, is_active, timeout_seconds,
+                                     output_table, index_fields, create_time, update_time)
+        VALUES(#{name}, #{description}, #{cronExpression}, #{isActive}, #{timeoutSeconds},
+               #{outputTable}, #{indexFields}, #{createTime}, #{updateTime})
+    </insert>
+
+    <update id="update">
+        UPDATE monitor_workflow
+        SET name = #{name}, description = #{description}, cron_expression = #{cronExpression},
+            is_active = #{isActive}, timeout_seconds = #{timeoutSeconds}, output_table = #{outputTable},
+            index_fields = #{indexFields}, update_time = #{updateTime}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM monitor_workflow WHERE id = #{id}
+    </delete>
+
+    <update id="updateActiveStatus">
+        UPDATE monitor_workflow SET is_active = #{isActive}, update_time = NOW() WHERE id = #{id}
+    </update>
+
+    <!-- 更新自动检测的索引字段 -->
+    <update id="updateIndexFields">
+        UPDATE monitor_workflow SET index_fields = #{indexFields}, update_time = NOW() WHERE id = #{id}
+    </update>
+
+</mapper>

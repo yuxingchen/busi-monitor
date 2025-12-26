@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.monitor.backend.mapper.WorkflowExecutionMapper">
+
+    <resultMap id="BaseResultMap" type="com.monitor.backend.entity.WorkflowExecution">
+        <id column="id" property="id"/>
+        <result column="workflow_id" property="workflowId"/>
+        <result column="status" property="status"/>
+        <result column="start_time" property="startTime"/>
+        <result column="end_time" property="endTime"/>
+        <result column="step_results" property="stepResults"/>
+        <result column="error_message" property="errorMessage"/>
+        <result column="workflow_name" property="workflowName"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, workflow_id, status, start_time, end_time, step_results, error_message
+    </sql>
+
+    <select id="findByWorkflowId" resultMap="BaseResultMap">
+        SELECT e.id, e.workflow_id, e.status, e.start_time, e.end_time, e.step_results, e.error_message,
+               w.name as workflow_name
+        FROM monitor_workflow_execution e
+        LEFT JOIN monitor_workflow w ON e.workflow_id = w.id
+        WHERE e.workflow_id = #{workflowId}
+        ORDER BY e.start_time DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT e.id, e.workflow_id, e.status, e.start_time, e.end_time, e.step_results, e.error_message,
+               w.name as workflow_name
+        FROM monitor_workflow_execution e
+        LEFT JOIN monitor_workflow w ON e.workflow_id = w.id
+        WHERE e.id = #{id}
+    </select>
+
+    <select id="findRecent" resultMap="BaseResultMap">
+        SELECT e.id, e.workflow_id, e.status, e.start_time, e.end_time, e.step_results, e.error_message,
+               w.name as workflow_name
+        FROM monitor_workflow_execution e
+        LEFT JOIN monitor_workflow w ON e.workflow_id = w.id
+        ORDER BY e.start_time DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="findLastSuccess" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM monitor_workflow_execution
+        WHERE workflow_id = #{workflowId} AND status = 'SUCCESS'
+        ORDER BY end_time DESC
+        LIMIT 1
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO monitor_workflow_execution(workflow_id, status, start_time, end_time, step_results, error_message)
+        VALUES(#{workflowId}, #{status}, #{startTime}, #{endTime}, #{stepResults}, #{errorMessage})
+    </insert>
+
+    <update id="update">
+        UPDATE monitor_workflow_execution
+        SET status = #{status}, end_time = #{endTime}, step_results = #{stepResults}, error_message = #{errorMessage}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteByWorkflowId">
+        DELETE FROM monitor_workflow_execution WHERE workflow_id = #{workflowId}
+    </delete>
+
+</mapper>

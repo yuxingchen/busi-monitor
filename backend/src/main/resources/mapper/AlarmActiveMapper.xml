@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.monitor.backend.mapper.AlarmActiveMapper">
+
+    <resultMap id="BaseResultMap" type="com.monitor.backend.entity.AlarmActive">
+        <id column="id" property="id"/>
+        <result column="task_id" property="taskId"/>
+        <result column="task_type" property="taskType"/>
+        <result column="trigger_type" property="triggerType"/>
+        <result column="trigger_value" property="triggerValue"/>
+        <result column="threshold_value" property="thresholdValue"/>
+        <result column="first_trigger_time" property="firstTriggerTime"/>
+        <result column="last_trigger_time" property="lastTriggerTime"/>
+        <result column="trigger_count" property="triggerCount"/>
+        <result column="status" property="status"/>
+        <result column="level" property="level"/>
+        <result column="acknowledge_by" property="acknowledgeBy"/>
+        <result column="acknowledge_time" property="acknowledgeTime"/>
+        <result column="resolve_time" property="resolveTime"/>
+        <result column="suppressed_until" property="suppressedUntil"/>
+        <result column="message" property="message"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, task_id, task_type, trigger_type, trigger_value, threshold_value,
+        first_trigger_time, last_trigger_time, trigger_count, status, level,
+        acknowledge_by, acknowledge_time, resolve_time, suppressed_until, message,
+        create_time, update_time
+    </sql>
+
+    <select id="findByTaskAndType" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM alarm_active
+        WHERE task_id = #{taskId} AND task_type = #{taskType} AND status != 'RESOLVED'
+        LIMIT 1
+    </select>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM alarm_active
+        WHERE id = #{id}
+    </select>
+
+    <select id="findAllActive" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM alarm_active
+        WHERE status != 'RESOLVED'
+        ORDER BY last_trigger_time DESC
+    </select>
+
+    <select id="findByStatus" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM alarm_active
+        WHERE status = #{status}
+        ORDER BY last_trigger_time DESC
+    </select>
+
+    <select id="findNeedEscalation" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM alarm_active
+        WHERE status = 'FIRING'
+          AND TIMESTAMPDIFF(MINUTE, first_trigger_time, NOW()) >= #{minutes}
+        ORDER BY first_trigger_time ASC
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO alarm_active(
+            task_id, task_type, trigger_type, trigger_value, threshold_value,
+            first_trigger_time, last_trigger_time, trigger_count, status, level,
+            message, create_time, update_time
+        ) VALUES (
+            #{taskId}, #{taskType}, #{triggerType}, #{triggerValue}, #{thresholdValue},
+            #{firstTriggerTime}, #{lastTriggerTime}, #{triggerCount}, #{status}, #{level},
+            #{message}, NOW(), NOW()
+        )
+    </insert>
+
+    <update id="update">
+        UPDATE alarm_active
+        SET trigger_value = #{triggerValue},
+            threshold_value = #{thresholdValue},
+            last_trigger_time = #{lastTriggerTime},
+            trigger_count = #{triggerCount},
+            status = #{status},
+            level = #{level},
+            acknowledge_by = #{acknowledgeBy},
+            acknowledge_time = #{acknowledgeTime},
+            resolve_time = #{resolveTime},
+            suppressed_until = #{suppressedUntil},
+            message = #{message},
+            update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE alarm_active
+        SET status = #{status}, update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+</mapper>

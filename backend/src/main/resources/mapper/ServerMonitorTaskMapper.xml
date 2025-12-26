@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.monitor.backend.mapper.ServerMonitorTaskMapper">
+
+    <resultMap id="BaseResultMap" type="com.monitor.backend.entity.ServerMonitorTask">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="server_id" property="serverId"/>
+        <result column="template_id" property="templateId"/>
+        <result column="collect_script" property="collectScript"/>
+        <result column="params" property="params"/>
+        <result column="threshold_rule" property="thresholdRule"/>
+        <result column="cron_expression" property="cronExpression"/>
+        <result column="alarm_channels" property="alarmChannels"/>
+        <result column="alarm_template_id" property="alarmTemplateId"/>
+        <result column="is_active" property="isActive"/>
+        <result column="last_run_time" property="lastRunTime"/>
+        <result column="last_run_status" property="lastRunStatus"/>
+        <result column="last_run_value" property="lastRunValue"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="server_name" property="serverName"/>
+        <result column="server_ip" property="serverIp"/>
+        <result column="template_name" property="templateName"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, name, server_id, template_id, collect_script, params, threshold_rule, cron_expression,
+        alarm_channels, alarm_template_id, is_active, last_run_time, last_run_status, last_run_value, create_time, update_time
+    </sql>
+
+    <select id="findAll" resultMap="BaseResultMap">
+        SELECT t.id, t.name, t.server_id, t.template_id, t.collect_script, t.params, t.threshold_rule,
+               t.cron_expression, t.alarm_channels, t.is_active, t.last_run_time, t.last_run_status,
+               t.last_run_value, t.create_time, t.update_time,
+               s.name as server_name, s.ip as server_ip, m.name as template_name
+        FROM server_monitor_task t
+        LEFT JOIN server_asset s ON t.server_id = s.id
+        LEFT JOIN monitor_template m ON t.template_id = m.id
+        ORDER BY t.id DESC
+    </select>
+
+    <select id="findByServerId" resultMap="BaseResultMap">
+        SELECT t.id, t.name, t.server_id, t.template_id, t.collect_script, t.params, t.threshold_rule,
+               t.cron_expression, t.alarm_channels, t.is_active, t.last_run_time, t.last_run_status,
+               t.last_run_value, t.create_time, t.update_time,
+               s.name as server_name, s.ip as server_ip, m.name as template_name
+        FROM server_monitor_task t
+        LEFT JOIN server_asset s ON t.server_id = s.id
+        LEFT JOIN monitor_template m ON t.template_id = m.id
+        WHERE t.server_id = #{serverId}
+        ORDER BY t.id
+    </select>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM server_monitor_task
+        WHERE id = #{id}
+    </select>
+
+    <select id="findAllActive" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM server_monitor_task
+        WHERE is_active = 1
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO server_monitor_task(name, server_id, template_id, collect_script, params, threshold_rule,
+                                        cron_expression, alarm_channels, alarm_template_id, is_active)
+        VALUES(#{name}, #{serverId}, #{templateId}, #{collectScript}, #{params}, #{thresholdRule},
+               #{cronExpression}, #{alarmChannels}, #{alarmTemplateId}, #{isActive})
+    </insert>
+
+    <update id="update">
+        UPDATE server_monitor_task
+        SET name = #{name}, server_id = #{serverId}, template_id = #{templateId},
+            collect_script = #{collectScript}, params = #{params}, threshold_rule = #{thresholdRule},
+            cron_expression = #{cronExpression}, alarm_channels = #{alarmChannels}, alarm_template_id = #{alarmTemplateId}, is_active = #{isActive}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateRunStatus">
+        UPDATE server_monitor_task
+        SET last_run_time = #{lastRunTime}, last_run_status = #{lastRunStatus}, last_run_value = #{lastRunValue}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM server_monitor_task WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteByServerId">
+        DELETE FROM server_monitor_task WHERE server_id = #{serverId}
+    </delete>
+
+</mapper>

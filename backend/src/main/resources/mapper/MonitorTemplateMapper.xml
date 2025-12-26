@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.monitor.backend.mapper.MonitorTemplateMapper">
+
+    <resultMap id="BaseResultMap" type="com.monitor.backend.entity.MonitorTemplate">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="category" property="category"/>
+        <result column="sub_category" property="subCategory"/>
+        <result column="collect_type" property="collectType"/>
+        <result column="collect_script" property="collectScript"/>
+        <result column="param_schema" property="paramSchema"/>
+        <result column="default_threshold" property="defaultThreshold"/>
+        <result column="default_cron" property="defaultCron"/>
+        <result column="alarm_template_id" property="alarmTemplateId"/>
+        <result column="description" property="description"/>
+        <result column="is_system" property="isSystem"/>
+        <result column="is_active" property="isActive"/>
+        <result column="sort_order" property="sortOrder"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, name, category, sub_category, collect_type, collect_script, param_schema,
+        default_threshold, default_cron, alarm_template_id, description, is_system, is_active, sort_order,
+        create_time, update_time
+    </sql>
+
+    <select id="findAll" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM monitor_template
+        WHERE is_active = 1
+        ORDER BY sort_order, id
+    </select>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM monitor_template
+        WHERE id = #{id}
+    </select>
+
+    <select id="findByCategory" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM monitor_template
+        WHERE category = #{category} AND is_active = 1
+        ORDER BY sort_order, id
+    </select>
+
+    <select id="findSystemTemplates" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM monitor_template
+        WHERE is_system = 1 AND is_active = 1
+        ORDER BY sort_order, id
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO monitor_template(name, category, sub_category, collect_type, collect_script, param_schema,
+                                     default_threshold, default_cron, alarm_template_id, description, is_system,
+                                     is_active, sort_order)
+        VALUES(#{name}, #{category}, #{subCategory}, #{collectType}, #{collectScript}, #{paramSchema},
+               #{defaultThreshold}, #{defaultCron}, #{alarmTemplateId}, #{description}, #{isSystem},
+               #{isActive}, #{sortOrder})
+    </insert>
+
+    <update id="update">
+        UPDATE monitor_template
+        SET name = #{name}, category = #{category}, sub_category = #{subCategory},
+            collect_type = #{collectType}, collect_script = #{collectScript}, param_schema = #{paramSchema},
+            default_threshold = #{defaultThreshold}, default_cron = #{defaultCron},
+            alarm_template_id = #{alarmTemplateId}, description = #{description},
+            is_active = #{isActive}, sort_order = #{sortOrder}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM monitor_template WHERE id = #{id}
+    </delete>
+
+</mapper>

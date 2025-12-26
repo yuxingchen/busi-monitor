@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.monitor.backend.mapper.ServerAssetMapper">
+
+    <resultMap id="BaseResultMap" type="com.monitor.backend.entity.ServerAsset">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="ip" property="ip"/>
+        <result column="port" property="port"/>
+        <result column="username" property="username"/>
+        <result column="auth_type" property="authType"/>
+        <result column="password_encrypted" property="passwordEncrypted"/>
+        <result column="private_key_encrypted" property="privateKeyEncrypted"/>
+        <result column="group_id" property="groupId"/>
+        <result column="tags" property="tags"/>
+        <result column="is_active" property="isActive"/>
+        <result column="last_check_time" property="lastCheckTime"/>
+        <result column="last_check_status" property="lastCheckStatus"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, name, ip, port, username, auth_type, password_encrypted, private_key_encrypted,
+        group_id, tags, is_active, last_check_time, last_check_status, create_time, update_time
+    </sql>
+
+    <select id="findAll" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM server_asset
+        WHERE is_active = 1
+        ORDER BY id DESC
+    </select>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM server_asset
+        WHERE id = #{id}
+    </select>
+
+    <select id="findByGroupId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM server_asset
+        WHERE group_id = #{groupId} AND is_active = 1
+    </select>
+
+    <select id="findByIp" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM server_asset
+        WHERE ip = #{ip}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO server_asset(name, ip, port, username, auth_type, password_encrypted,
+                                 private_key_encrypted, group_id, tags, is_active)
+        VALUES(#{name}, #{ip}, #{port}, #{username}, #{authType}, #{passwordEncrypted},
+               #{privateKeyEncrypted}, #{groupId}, #{tags}, #{isActive})
+    </insert>
+
+    <update id="update">
+        UPDATE server_asset
+        SET name = #{name}, ip = #{ip}, port = #{port}, username = #{username},
+            auth_type = #{authType}, password_encrypted = #{passwordEncrypted},
+            private_key_encrypted = #{privateKeyEncrypted}, group_id = #{groupId},
+            tags = #{tags}, is_active = #{isActive}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE server_asset
+        SET last_check_time = #{lastCheckTime}, last_check_status = #{lastCheckStatus}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM server_asset WHERE id = #{id}
+    </delete>
+
+</mapper>

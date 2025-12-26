@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.monitor.backend.mapper.WorkflowStepMapper">
+
+    <resultMap id="BaseResultMap" type="com.monitor.backend.entity.WorkflowStep">
+        <id column="id" property="id"/>
+        <result column="workflow_id" property="workflowId"/>
+        <result column="step_order" property="stepOrder"/>
+        <result column="name" property="name"/>
+        <result column="step_type" property="stepType"/>
+        <result column="datasource_id" property="datasourceId"/>
+        <result column="sql_script" property="sqlScript"/>
+        <result column="result_variable" property="resultVariable"/>
+        <result column="config" property="config"/>
+        <result column="position_x" property="positionX"/>
+        <result column="position_y" property="positionY"/>
+        <result column="batch_enabled" property="batchEnabled"/>
+        <result column="id_column" property="idColumn"/>
+        <result column="partition_count" property="partitionCount"/>
+        <result column="chunk_size" property="chunkSize"/>
+        <result column="cache_strategy" property="cacheStrategy"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, workflow_id, step_order, name, step_type, datasource_id, sql_script, result_variable, config, position_x, position_y,
+        batch_enabled, id_column, partition_count, chunk_size, cache_strategy
+    </sql>
+
+    <select id="findByWorkflowId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM monitor_workflow_step
+        WHERE workflow_id = #{workflowId}
+        ORDER BY step_order
+    </select>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM monitor_workflow_step
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO monitor_workflow_step(workflow_id, step_order, name, step_type, datasource_id, sql_script,
+                                          result_variable, config, position_x, position_y,
+                                          batch_enabled, id_column, partition_count, chunk_size, cache_strategy)
+        VALUES(#{workflowId}, #{stepOrder}, #{name}, #{stepType}, #{datasourceId}, #{sqlScript},
+               #{resultVariable}, #{config}, #{positionX}, #{positionY},
+               #{batchEnabled}, #{idColumn}, #{partitionCount}, #{chunkSize}, #{cacheStrategy})
+    </insert>
+
+    <update id="update">
+        UPDATE monitor_workflow_step
+        SET step_order = #{stepOrder}, name = #{name}, step_type = #{stepType},
+            datasource_id = #{datasourceId}, sql_script = #{sqlScript}, result_variable = #{resultVariable},
+            config = #{config}, position_x = #{positionX}, position_y = #{positionY},
+            batch_enabled = #{batchEnabled}, id_column = #{idColumn}, partition_count = #{partitionCount},
+            chunk_size = #{chunkSize}, cache_strategy = #{cacheStrategy}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM monitor_workflow_step WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteByWorkflowId">
+        DELETE FROM monitor_workflow_step WHERE workflow_id = #{workflowId}
+    </delete>
+
+    <insert id="batchInsert">
+        INSERT INTO monitor_workflow_step(workflow_id, step_order, name, step_type, datasource_id, sql_script,
+                                          result_variable, config, position_x, position_y,
+                                          batch_enabled, id_column, partition_count, chunk_size, cache_strategy)
+        VALUES
+        <foreach collection="steps" item="step" separator=",">
+            (#{step.workflowId}, #{step.stepOrder}, #{step.name}, #{step.stepType}, #{step.datasourceId},
+             #{step.sqlScript}, #{step.resultVariable}, #{step.config}, #{step.positionX}, #{step.positionY},
+             #{step.batchEnabled}, #{step.idColumn}, #{step.partitionCount}, #{step.chunkSize}, #{step.cacheStrategy})
+        </foreach>
+    </insert>
+
+</mapper>
