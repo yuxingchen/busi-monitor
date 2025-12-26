@@ -1,3 +1,7 @@
 /.idea/
 /backend/target/
 /cache/
+.DS_Store
+/backend/.DS_Store
+/backend/scr/.DS_Store
+/backend/scr/main/.DS_Store
