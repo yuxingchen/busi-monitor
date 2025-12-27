@@ -1,9 +1,9 @@
 package com.monitor.backend.alarm;
 
+import lombok.Data;
+
 import java.util.List;
 import java.util.Map;
-
-import lombok.Data;
 
 /**
  * 告警上下文

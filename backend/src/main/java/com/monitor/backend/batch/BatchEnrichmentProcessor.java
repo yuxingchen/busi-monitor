@@ -1,10 +1,7 @@
 package com.monitor.backend.batch;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
+import com.monitor.backend.constant.BatchDefaults;
+import com.monitor.backend.service.IntermediateStorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
@@ -14,7 +11,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-import com.monitor.backend.service.IntermediateStorageService;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 批处理数据富化处理器
@@ -81,7 +81,7 @@ public class BatchEnrichmentProcessor implements ItemProcessor<Map<String, Objec
         Map<String, Object> enrichedItem = new HashMap<>(item);
         if (enrichFields != null && !enrichFields.isEmpty()) {
             // 只合并指定字段
-            for (String field : enrichFields.split(",")) {
+            for (String field : enrichFields.split(BatchDefaults.DEFAULT_SEPARATOR)) {
                 String trimmedField = field.trim();
                 if (enrichData.containsKey(trimmedField)) {
                     enrichedItem.put(trimmedField, enrichData.get(trimmedField));

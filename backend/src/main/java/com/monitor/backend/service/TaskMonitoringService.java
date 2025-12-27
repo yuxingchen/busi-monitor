@@ -1,25 +1,24 @@
 package com.monitor.backend.service;
 
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledFuture;
-
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.monitor.backend.alarm.AlarmContext;
+import com.monitor.backend.alarm.AlarmService;
+import com.monitor.backend.constant.CompareOperator;
+import com.monitor.backend.entity.MonitorRecord;
+import com.monitor.backend.entity.MonitorTask;
+import com.monitor.backend.mapper.MonitorRecordMapper;
+import com.monitor.backend.mapper.MonitorTaskMapper;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.scheduling.support.CronTrigger;
 import org.springframework.stereotype.Service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.monitor.backend.alarm.AlarmContext;
-import com.monitor.backend.alarm.AlarmService;
-import com.monitor.backend.entity.MonitorRecord;
-import com.monitor.backend.entity.MonitorTask;
-import com.monitor.backend.mapper.MonitorRecordMapper;
-import com.monitor.backend.mapper.MonitorTaskMapper;
-
-import jakarta.annotation.PostConstruct;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledFuture;
 
 @Service
 public class TaskMonitoringService {
@@ -36,8 +35,8 @@ public class TaskMonitoringService {
     private final ObjectMapper objectMapper;
 
     public TaskMonitoringService(MonitorTaskMapper taskMapper, MonitorRecordMapper recordMapper,
-            DynamicSqlExecutor sqlExecutor, DynamicTableService dynamicTableService,
-            AlarmService alarmService, ObjectMapper objectMapper) {
+                                 DynamicSqlExecutor sqlExecutor, DynamicTableService dynamicTableService,
+                                 AlarmService alarmService, ObjectMapper objectMapper) {
         this.taskMapper = taskMapper;
         this.recordMapper = recordMapper;
         this.sqlExecutor = sqlExecutor;
@@ -165,33 +164,13 @@ public class TaskMonitoringService {
             return;
 
         try {
-            Map<String, Object> rule = objectMapper.readValue(task.getAlarmThresholdRule(), Map.class);
+            Map rule = objectMapper.readValue(task.getAlarmThresholdRule(), Map.class);
             String operator = (String) rule.get("operator");
             Number threshold = (Number) rule.get("value");
 
             if (operator != null && threshold != null) {
                 double thresholdVal = threshold.doubleValue();
-                boolean isAlarm = false;
-                switch (operator) {
-                    case ">":
-                        isAlarm = value > thresholdVal;
-                        break;
-                    case ">=":
-                        isAlarm = value >= thresholdVal;
-                        break;
-                    case "<":
-                        isAlarm = value < thresholdVal;
-                        break;
-                    case "<=":
-                        isAlarm = value <= thresholdVal;
-                        break;
-                    case "=":
-                        isAlarm = Math.abs(value - thresholdVal) < 0.0001;
-                        break;
-                    default:
-                        break;
-                }
-
+                boolean isAlarm = CompareOperator.fromSymbol(operator).compare(value, thresholdVal);
                 if (isAlarm) {
                     logger.warn("ALARM TRIGGERED for Task {}: Value {} {} {}", task.getName(), value, operator,
                             thresholdVal);

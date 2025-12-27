@@ -18,8 +18,24 @@ public interface CacheStrategy {
         FILE,       // 本地文件
         REDIS,      // Redis
         ES,         // Elasticsearch
-        TEMP_TABLE  // 临时数据库表
+        TEMP_TABLE;  // 临时数据库表
+
+        /**
+         * 从字符串转换成缓存策略类型
+         */
+        public static Type fromCode(String code) {
+            if (code == null) {
+                return Type.FILE;
+            }
+            for (Type s : Type.values()) {
+                if (s.name().equalsIgnoreCase(code)) {
+                    return s;
+                }
+            }
+            return Type.FILE; // 默认文件缓存
+        }
     }
+
 
     /**
      * 获取策略类型
@@ -28,7 +44,7 @@ public interface CacheStrategy {
 
     /**
      * 写入缓存数据
-     * 
+     *
      * @param cacheKey 缓存键（用于区分不同的缓存数据集）
      * @param data     数据列表
      */
@@ -36,7 +52,7 @@ public interface CacheStrategy {
 
     /**
      * 读取缓存数据
-     * 
+     *
      * @param cacheKey 缓存键
      * @return 数据列表
      */
@@ -44,7 +60,7 @@ public interface CacheStrategy {
 
     /**
      * 分批读取缓存数据
-     * 
+     *
      * @param cacheKey 缓存键
      * @param offset   偏移量
      * @param limit    每批数量
@@ -54,7 +70,7 @@ public interface CacheStrategy {
 
     /**
      * 获取缓存数据条数
-     * 
+     *
      * @param cacheKey 缓存键
      * @return 数据条数
      */
@@ -62,14 +78,14 @@ public interface CacheStrategy {
 
     /**
      * 清理缓存
-     * 
+     *
      * @param cacheKey 缓存键
      */
     void clear(String cacheKey);
 
     /**
      * 检查缓存是否存在
-     * 
+     *
      * @param cacheKey 缓存键
      * @return 是否存在
      */

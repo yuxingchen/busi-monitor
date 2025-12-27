@@ -2,6 +2,8 @@ package com.monitor.backend.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.monitor.backend.constant.SystemFields;
+import com.monitor.backend.constant.WorkflowStepType;
 import com.monitor.backend.entity.MonitorTask;
 import com.monitor.backend.entity.Workflow;
 import com.monitor.backend.mapper.MonitorTaskMapper;
@@ -15,11 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.sql.DataSource;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Date;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.StringJoiner;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -49,41 +47,6 @@ public class DynamicTableService {
         this.sqlPlaceholderService = sqlPlaceholderService;
     }
 
-    /**
-     * Ensure table exists for the given task.
-     * Table name: monitor_data_task_{taskId}
-     * Schema inferred from the first row of data.
-     */
-    @Transactional
-    public void ensureTableExists(Long taskId, Map<String, Object> sampleRow) {
-        String tableName = "monitor_data_task_" + taskId;
-
-        // Check if table exists (simple check by querying metadata or trying select)
-        // Here we use CREATE TABLE IF NOT EXISTS
-
-        StringBuilder sql = new StringBuilder("CREATE TABLE IF NOT EXISTS " + tableName + " (");
-        sql.append("id BIGINT AUTO_INCREMENT PRIMARY KEY, ");
-        sql.append("batch_id VARCHAR(50), ");
-        sql.append("execution_time DATETIME, ");
-
-        for (Map.Entry<String, Object> entry : sampleRow.entrySet()) {
-            String colName = "`" + entry.getKey() + "`";
-            String colType = inferSqlType(entry.getValue());
-            sql.append(colName).append(" ").append(colType).append(", ");
-        }
-
-        // Remove last comma
-        sql.setLength(sql.length() - 2);
-        sql.append(") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-
-        logger.info("Creating/Ensuring table: {}", tableName);
-        jdbcTemplate.execute(sql.toString());
-
-        // Note: Handling schema changes (ALTER TABLE) is complex.
-        // For now, we assume schema is stable or user drops table manually if it
-        // changes dramatically.
-        // A robust solution would check information_schema and add missing columns.
-    }
 
     private String inferSqlType(Object value) {
         if (value == null)
@@ -103,61 +66,6 @@ public class DynamicTableService {
         return "VARCHAR(255)";
     }
 
-    @Transactional
-    public void saveData(Long taskId, String batchId, List<Map<String, Object>> data) {
-        if (data == null || data.isEmpty())
-            return;
-
-        String tableName = "monitor_data_task_" + taskId;
-
-        // Ensure keys are consistent. We take keys from the first row.
-        Map<String, Object> firstRow = data.get(0);
-        List<String> keys = firstRow.keySet().stream().collect(Collectors.toList());
-
-        StringJoiner colNames = new StringJoiner(", ");
-        colNames.add("batch_id");
-        colNames.add("execution_time");
-        keys.forEach(k -> colNames.add("`" + k + "`"));
-
-        StringJoiner placeHolders = new StringJoiner(", ");
-        placeHolders.add("?"); // batch_id
-        placeHolders.add("?"); // execution_time
-        keys.forEach(k -> placeHolders.add("?"));
-
-        String sql = "INSERT INTO " + tableName + " (" + colNames + ") VALUES (" + placeHolders + ")";
-
-        List<Object[]> batchArgs = data.stream().map(row -> {
-            Object[] args = new Object[keys.size() + 2];
-            args[0] = batchId;
-            args[1] = new Date();
-            for (int i = 0; i < keys.size(); i++) {
-                args[i + 2] = row.get(keys.get(i));
-            }
-            return args;
-        }).collect(Collectors.toList());
-
-        try {
-            jdbcTemplate.batchUpdate(sql, batchArgs);
-            logger.info("Inserted {} rows into {}", data.size(), tableName);
-        } catch (Exception e) {
-            logger.error("Failed to insert data into " + tableName + ". Maybe schema changed?", e);
-            throw e;
-        }
-    }
-
-    @Transactional(readOnly = true)
-    public List<Map<String, Object>> queryData(Long taskId, int limit) {
-        String tableName = "monitor_data_task_" + taskId;
-        try {
-            // Check if table exists indirectly by query
-            String sql = "SELECT * FROM " + tableName + " ORDER BY execution_time DESC LIMIT ?";
-            return jdbcTemplate.queryForList(sql, limit);
-        } catch (Exception e) {
-            // Table might not exist yet
-            logger.warn("Failed to query data from {}: {}", tableName, e.getMessage());
-            return List.of();
-        }
-    }
 
     /**
      * 统一透视表数据查询入口
@@ -178,7 +86,7 @@ public class DynamicTableService {
         try {
             // 1. 解析chartConfig
             JsonNode cfg = parseChartConfig(task.getChartConfig());
-            String sourceType = cfg.path("sourceType").asText("SQL");
+            String sourceType = cfg.path("sourceType").asText(WorkflowStepType.SQL.getCode());
             Long workflowId = cfg.path("workflowId").asLong(0);
             String outputTable = cfg.path("outputTable").asText(null);
             int configLimit = cfg.path("queryLimit").asInt(0);
@@ -287,9 +195,9 @@ public class DynamicTableService {
         return rawData.stream().map(row -> {
             Map<String, Object> filtered = new LinkedHashMap<>();
             row.forEach((key, value) -> {
-                if (key.equals("execution_time") && value != null) {
-                    filtered.put("execution_time", formatDateTime(value));
-                } else if (!key.equals("id") && !key.equals("batch_id") && !key.equals("execution_id")) {
+                if (key.equals(SystemFields.EXECUTION_TIME) && value != null) {
+                    filtered.put(SystemFields.EXECUTION_TIME, formatDateTime(value));
+                } else if (!SystemFields.isSystemField(key)) {
                     filtered.put(key, value);
                 }
             });
@@ -330,12 +238,12 @@ public class DynamicTableService {
             // 只有当结果中没有execution_time字段时，才添加当前时间
             String now = LocalDateTime.now().format(TIME_FORMATTER);
             result.forEach(row -> {
-                if (!row.containsKey("execution_time") || row.get("execution_time") == null) {
-                    row.put("execution_time", now);
+                if (!row.containsKey(SystemFields.EXECUTION_TIME) || row.get(SystemFields.EXECUTION_TIME) == null) {
+                    row.put(SystemFields.EXECUTION_TIME, now);
                 } else {
                     // 格式化已有的execution_time
-                    Object existingTime = row.get("execution_time");
-                    row.put("execution_time", formatDateTime(existingTime));
+                    Object existingTime = row.get(SystemFields.EXECUTION_TIME);
+                    row.put(SystemFields.EXECUTION_TIME, formatDateTime(existingTime));
                 }
             });
 
@@ -344,15 +252,6 @@ public class DynamicTableService {
             logger.error("实时执行SQL失败: taskId={}", task.getId(), e);
             return List.of();
         }
-    }
-
-    /**
-     * 实时执行工作流（降级方案）
-     */
-    private List<Map<String, Object>> executeWorkflowRealtime(Long workflowId, Integer limit) {
-        // 工作流实时执行比较重，这里简单返回空，提示用户先执行工作流
-        logger.info("工作流{}结果表不存在，请先执行工作流", workflowId);
-        return List.of();
     }
 
     /**
@@ -383,7 +282,7 @@ public class DynamicTableService {
             return rawData.stream().map(row -> {
                 Map<String, Object> filtered = new java.util.LinkedHashMap<>();
                 row.forEach((key, value) -> {
-                    if (!key.equals("id") && !key.equals("batch_id") && !key.equals("execution_time")) {
+                    if (!SystemFields.isSystemField(key)) {
                         filtered.put(key, value);
                     }
                 });
@@ -439,7 +338,7 @@ public class DynamicTableService {
 
         try {
             // 安全检查：确保字段名不包含特殊字符
-            if (!isValidColumnName(groupByField) || !isValidColumnName(valueField)) {
+            if (isValidColumnName(groupByField) || isValidColumnName(valueField)) {
                 logger.error("Invalid column name detected");
                 return List.of();
             }
@@ -463,10 +362,10 @@ public class DynamicTableService {
      */
     private boolean isValidColumnName(String columnName) {
         if (columnName == null || columnName.isEmpty()) {
-            return false;
+            return true;
         }
         // 只允许字母、数字、下划线
-        return columnName.matches("^[a-zA-Z_][a-zA-Z0-9_]*$");
+        return !columnName.matches("^[a-zA-Z_][a-zA-Z0-9_]*$");
     }
 
     // ==================== 工作流结果表相关方法 ====================
@@ -494,8 +393,8 @@ public class DynamicTableService {
         List<String> keys = firstRow.keySet().stream().collect(Collectors.toList());
 
         StringJoiner colNames = new StringJoiner(", ");
-        colNames.add("execution_id");
-        colNames.add("execution_time");
+        colNames.add(SystemFields.EXECUTION_ID);
+        colNames.add(SystemFields.EXECUTION_TIME);
         keys.forEach(k -> colNames.add("`" + k + "`"));
 
         StringJoiner placeHolders = new StringJoiner(", ");
@@ -589,7 +488,7 @@ public class DynamicTableService {
             return rawData.stream().map(row -> {
                 Map<String, Object> filtered = new java.util.LinkedHashMap<>();
                 row.forEach((key, value) -> {
-                    if (!key.equals("id") && !key.equals("execution_id")) {
+                    if (!key.equals(SystemFields.ID) && !key.equals(SystemFields.EXECUTION_ID)) {
                         filtered.put(key, value);
                     }
                 });
@@ -657,11 +556,11 @@ public class DynamicTableService {
             return;
 
         Map<String, Object> firstRow = data.get(0);
-        List<String> keys = firstRow.keySet().stream().collect(Collectors.toList());
+        List<String> keys = firstRow.keySet().stream().toList();
 
         StringJoiner colNames = new StringJoiner(", ");
-        colNames.add("batch_id");
-        colNames.add("execution_time");
+        colNames.add(SystemFields.BATCH_ID);
+        colNames.add(SystemFields.EXECUTION_TIME);
         keys.forEach(k -> colNames.add("`" + k + "`"));
 
         StringJoiner placeHolders = new StringJoiner(", ");

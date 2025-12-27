@@ -1,7 +1,10 @@
 package com.monitor.backend.service;
 
+import com.monitor.backend.constant.AuthConstants;
+import lombok.Getter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -15,22 +18,20 @@ import java.util.Base64;
  * 用于解密前端加密传输的敏感数据（密码等）
  * 使用 AES-CBC 算法（与前端 crypto-js 兼容）
  */
+@Getter
 @Service
 public class TransmitEncryptionService {
     
     private static final String ALGORITHM = "AES/CBC/PKCS5Padding";
-    
+
+    /**
+     * -- GETTER --
+     *  获取传输密钥（返回给前端）
+     *  密钥基于固定配置，前端使用相同密钥加密
+     */
     @Value("${encryption.transmit-key:busi-monitor-transmit-key-32ch}")
     private String transmitKey;
-    
-    /**
-     * 获取传输密钥（返回给前端）
-     * 密钥基于固定配置，前端使用相同密钥加密
-     */
-    public String getTransmitKey() {
-        return transmitKey;
-    }
-    
+
     /**
      * 解密前端传来的数据
      * 前端使用 crypto-js 的 AES.encrypt 加密
@@ -42,7 +43,7 @@ public class TransmitEncryptionService {
         }
         
         // 如果数据不是加密格式（不含特定前缀或太短），原样返回（向后兼容）
-        if (!encryptedData.startsWith("ENC:")) {
+        if (!AuthConstants.isEncrypted(encryptedData)) {
             return encryptedData;
         }
         
@@ -97,7 +98,7 @@ public class TransmitEncryptionService {
             System.arraycopy(iv, 0, combined, 0, iv.length);
             System.arraycopy(encrypted, 0, combined, iv.length, encrypted.length);
             
-            return "ENC:" + Base64.getEncoder().encodeToString(combined);
+            return AuthConstants.ENCRYPTION_PREFIX + Base64.getEncoder().encodeToString(combined);
         } catch (Exception e) {
             throw new RuntimeException("加密失败", e);
         }

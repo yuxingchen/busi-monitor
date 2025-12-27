@@ -1,24 +1,20 @@
 package com.monitor.backend.service;
 
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.monitor.backend.cache.CacheStrategy;
 import com.monitor.backend.component.MemoryJoinExecutor;
 import com.monitor.backend.component.WorkflowSqlParser;
-import com.monitor.backend.constant.BatchDefaults;
-import com.monitor.backend.constant.ConfigKeys;
-import com.monitor.backend.constant.ExecutionStatus;
-import com.monitor.backend.constant.JoinType;
-import com.monitor.backend.constant.LoopContextKeys;
-import com.monitor.backend.constant.LoopSourceType;
-import com.monitor.backend.constant.SystemFields;
-import com.monitor.backend.constant.WorkflowStepType;
+import com.monitor.backend.component.WorkflowSqlParser.JoinClause;
+import com.monitor.backend.component.WorkflowSqlParser.JoinCondition;
+import com.monitor.backend.component.WorkflowSqlParser.ParseResult;
+import com.monitor.backend.component.WorkflowSqlParser.TableRef;
+import com.monitor.backend.constant.*;
+import com.monitor.backend.entity.Workflow;
+import com.monitor.backend.entity.WorkflowExecution;
+import com.monitor.backend.entity.WorkflowStep;
+import com.monitor.backend.mapper.WorkflowExecutionMapper;
+import com.monitor.backend.mapper.WorkflowMapper;
+import com.monitor.backend.mapper.WorkflowStepMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.Job;
@@ -30,24 +26,15 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.monitor.backend.entity.Workflow;
-import com.monitor.backend.entity.WorkflowExecution;
-import com.monitor.backend.entity.WorkflowStep;
-import com.monitor.backend.mapper.WorkflowExecutionMapper;
-import com.monitor.backend.mapper.WorkflowMapper;
-import com.monitor.backend.mapper.WorkflowStepMapper;
-import com.monitor.backend.component.WorkflowSqlParser.JoinClause;
-import com.monitor.backend.component.WorkflowSqlParser.JoinCondition;
-import com.monitor.backend.component.WorkflowSqlParser.ParseResult;
-import com.monitor.backend.component.WorkflowSqlParser.TableRef;
+import java.time.LocalDateTime;
+import java.util.*;
 
 /**
  * 工作流执行服务
  * <p>
  * 负责加载、执行工作流，处理步骤间的变量传递，并将结果写入结果表。
  * </p>
- * 
+ *
  * <h3>核心功能：</h3>
  * <ul>
  * <li>支持内存JOIN：当SQL中引用上游变量时，自动解析并执行内存JOIN</li>
@@ -91,9 +78,9 @@ public class WorkflowExecutorService {
     private IntermediateStorageService intermediateStorage;
 
     public WorkflowExecutorService(WorkflowMapper workflowMapper, WorkflowStepMapper stepMapper,
-            WorkflowExecutionMapper executionMapper, DynamicSqlExecutor sqlExecutor,
-            DynamicTableService tableService, WorkflowSqlParser sqlParser,
-            MemoryJoinExecutor joinExecutor, IndexFieldCollector indexFieldCollector) {
+                                   WorkflowExecutionMapper executionMapper, DynamicSqlExecutor sqlExecutor,
+                                   DynamicTableService tableService, WorkflowSqlParser sqlParser,
+                                   MemoryJoinExecutor joinExecutor, IndexFieldCollector indexFieldCollector) {
         this.workflowMapper = workflowMapper;
         this.stepMapper = stepMapper;
         this.executionMapper = executionMapper;
@@ -107,15 +94,15 @@ public class WorkflowExecutorService {
 
     /**
      * 执行工作流（入口方法）
-     * 
+     * <p>
      * 根据工作流配置的 batchMode 字段选择执行路径：
      * - batchMode = 0：普通模式，顺序执行各步骤
      * - 检查任意步骤开启了 batchEnabled：批处理模式，使用 Spring Batch 分区并行执行
-     * 
+     * <p>
      * 注意：此方法不使用 @Transactional，因为 Spring Batch 5.x 的 JobRepository
      * 要求在启动 Job 时不能存在外部事务，否则会抛出 IllegalStateException。
      * 数据库操作（如 executionMapper.insert/update）使用独立事务。
-     * 
+     *
      * @param workflowId 工作流ID
      * @return 执行记录
      */
@@ -160,9 +147,9 @@ public class WorkflowExecutorService {
      *   <li>根据步骤的ExecutionMode选择执行策略</li>
      * </ol>
      * </p>
-     * 
+     *
      * @param workflow 工作流配置
-     * @param steps 工作流步骤列表
+     * @param steps    工作流步骤列表
      * @return 执行记录
      */
     private WorkflowExecution executeBatchMode(Workflow workflow, List<WorkflowStep> steps) {
@@ -187,28 +174,28 @@ public class WorkflowExecutorService {
 
         try {
             // ===== 1. 分析步骤依赖关系 =====
-            Map<String, com.monitor.backend.batch.BatchStepResolver.StepDependencyInfo> depMap = 
+            Map<String, com.monitor.backend.batch.BatchStepResolver.StepDependencyInfo> depMap =
                     batchStepResolver.analyzeDependencies(steps);
-            
+
             // 按依赖层级分组
             List<List<WorkflowStep>> layers = batchStepResolver.groupByDependencyLevel(steps, depMap);
             logger.info("工作流分层完成: 共{}层", layers.size());
-            
+
             // ===== 2. 执行上下文（存储各步骤结果） =====
             Map<String, Object> context = new HashMap<>();
             List<Map<String, Object>> lastResult = null;
             String outputTable = getOutputTableName(workflow);
-            
+
             // ===== 3. 分层执行 =====
             for (int layerIndex = 0; layerIndex < layers.size(); layerIndex++) {
                 List<WorkflowStep> layer = layers.get(layerIndex);
                 logger.info("开始执行第{}层，共{}个步骤", layerIndex, layer.size());
-                
+
                 // 收集当前可用的变量名（所有上游步骤的resultVariable）
                 // 注意：这里使用Set引用，后续步骤执行后会动态添加新变量
                 Set<String> availableVars = new HashSet<>(context.keySet());
                 logger.info("层{}开始时可用变量: {}", layerIndex, availableVars);
-                
+
                 for (WorkflowStep step : layer) {
                     // 跳过非批处理步骤或非SQL类型
                     if (step.getBatchEnabled() == null || step.getBatchEnabled() != 1) {
@@ -221,15 +208,15 @@ public class WorkflowExecutorService {
                         }
                         continue;
                     }
-                    
+
                     // 分析步骤执行模式
-                    com.monitor.backend.batch.BatchStepResolver.BatchStepInfo stepInfo = 
+                    com.monitor.backend.batch.BatchStepResolver.BatchStepInfo stepInfo =
                             batchStepResolver.analyzeWithContext(step, availableVars);
-                    
-                    logger.info("步骤[{}] 执行模式: {}, 变量依赖: {}, 真实表: {}", 
-                            step.getName(), stepInfo.getExecutionMode(), 
+
+                    logger.info("步骤[{}] 执行模式: {}, 变量依赖: {}, 真实表: {}",
+                            step.getName(), stepInfo.getExecutionMode(),
                             stepInfo.getContextVariables(), stepInfo.getRealTables());
-                    
+
                     // 根据执行模式选择策略
                     lastResult = switch (stepInfo.getExecutionMode()) {
                         case PURE_BATCH ->
@@ -243,7 +230,7 @@ public class WorkflowExecutorService {
                                 executeStep(step, context);
                         default -> executeStep(step, context);
                     };
-                    
+
                     // 存入context供后续步骤使用
                     if (step.getResultVariable() != null && lastResult != null) {
                         context.put(step.getResultVariable(), lastResult);
@@ -253,13 +240,13 @@ public class WorkflowExecutorService {
                     }
                 }
             }
-            
+
             // ===== 4. 写入结果表 =====
             if (lastResult != null && !lastResult.isEmpty()) {
                 writeToResultTable(lastResult, outputTable, execution.getId());
                 createResultTableIndexes(workflow, steps, lastResult, outputTable);
             }
-            
+
             // 更新执行状态
             execution.setStatus(ExecutionStatus.SUCCESS.getCode());
             execution.setEndTime(LocalDateTime.now());
@@ -283,22 +270,22 @@ public class WorkflowExecutorService {
 
         return execution;
     }
-    
+
     /**
      * 纯批处理执行：无变量依赖，直接使用Spring Batch分区查询
-     * 
-     * @param stepInfo 步骤批处理信息
+     *
+     * @param stepInfo  步骤批处理信息
      * @param execution 执行记录
-     * @param workflow 工作流配置
+     * @param workflow  工作流配置
      * @return 查询结果列表
      */
     private List<Map<String, Object>> executePureBatch(
             com.monitor.backend.batch.BatchStepResolver.BatchStepInfo stepInfo,
             WorkflowExecution execution,
             Workflow workflow) throws Exception {
-        
+
         logger.info("执行纯批处理: step={}, table={}", stepInfo.getStepName(), stepInfo.getTableName());
-        
+
         // 构建Spring Batch Job参数
         JobParameters params = new JobParametersBuilder()
                 .addLong("workflowId", workflow.getId())
@@ -315,23 +302,23 @@ public class WorkflowExecutorService {
                 .addString("outputTable", getOutputTableName(workflow))
                 .addLocalDateTime("startTime", LocalDateTime.now())
                 .toJobParameters();
-        
+
         // 同步执行Spring Batch Job
         org.springframework.batch.core.JobExecution jobExecution = asyncJobLauncher.run(dataExtractionJob, params);
-        
+
         // 等待Job完成
         while (jobExecution.isRunning()) {
             Thread.sleep(100);
         }
-        
+
         // 从缓存读取结果
         if (intermediateStorage != null) {
             return intermediateStorage.read(stepInfo.getCacheKey());
         }
-        
+
         return new ArrayList<>();
     }
-    
+
     /**
      * 混合批处理执行：变量表从context获取 + 真实表批量查询 + 内存JOIN
      * <p>
@@ -342,10 +329,10 @@ public class WorkflowExecutorService {
      *   <li>使用JoinExecutor在内存中执行JOIN</li>
      * </ol>
      * </p>
-     * 
+     *
      * @param stepInfo 步骤批处理信息
-     * @param step 工作流步骤
-     * @param context 执行上下文（包含变量表数据）
+     * @param step     工作流步骤
+     * @param context  执行上下文（包含变量表数据）
      * @return JOIN结果列表
      */
     @SuppressWarnings("unchecked")
@@ -353,10 +340,10 @@ public class WorkflowExecutorService {
             com.monitor.backend.batch.BatchStepResolver.BatchStepInfo stepInfo,
             WorkflowStep step,
             Map<String, Object> context) throws Exception {
-        
-        logger.info("执行混合批处理: step={}, contextVars={}, realTables={}", 
+
+        logger.info("执行混合批处理: step={}, contextVars={}, realTables={}",
                 step.getName(), stepInfo.getContextVariables(), stepInfo.getRealTables());
-        
+
         // ===== 1. 获取变量表数据（从context） =====
         Map<String, List<Map<String, Object>>> varData = new HashMap<>();
         for (String varName : stepInfo.getContextVariables()) {
@@ -368,82 +355,82 @@ public class WorkflowExecutorService {
                 logger.warn("变量[{}]不是List类型，跳过", varName);
             }
         }
-        
+
         if (varData.isEmpty()) {
             logger.warn("无法获取变量数据，降级到常规执行");
             return executeStep(step, context);
         }
-        
+
         // ===== 2. 批量查询真实表 =====
         Map<String, List<Map<String, Object>>> tableData = new HashMap<>();
         for (String tableName : stepInfo.getRealTables()) {
             // 构建单表查询SQL
             String singleTableSql = "SELECT * FROM " + tableName;
-            
+
             // 使用已有的sqlExecutor执行查询
             List<Map<String, Object>> data = sqlExecutor.executeQuery(
                     stepInfo.getDatasourceId(), singleTableSql);
             tableData.put(tableName, data);
             logger.info("批量查询表[{}]: {}条数据", tableName, data.size());
         }
-        
+
         // ===== 3. 执行内存JOIN =====
         // 解析SQL获取JOIN信息
         Set<String> contextVariableNames = new HashSet<>(context.keySet());
         ParseResult parseResult = sqlParser.parse(step.getSqlScript(), contextVariableNames);
-        
+
         // 获取主表数据
-        String mainTableName = parseResult.getVariableTables().isEmpty() 
+        String mainTableName = parseResult.getVariableTables().isEmpty()
                 ? parseResult.getRealTables().get(0).getTableName()
                 : parseResult.getVariableTables().get(0).getTableName();
-        
-        List<Map<String, Object>> leftData = varData.containsKey(mainTableName) 
-                ? varData.get(mainTableName) 
+
+        List<Map<String, Object>> leftData = varData.containsKey(mainTableName)
+                ? varData.get(mainTableName)
                 : tableData.get(mainTableName);
-        
+
         if (leftData == null) {
             logger.error("无法获取主表[{}]数据", mainTableName);
             return new ArrayList<>();
         }
-        
+
         // 依次执行每个JOIN
         List<Map<String, Object>> result = new ArrayList<>(leftData);
         for (JoinClause join : parseResult.getJoins()) {
             String rightTableName = join.getTable().getTableName();
-            List<Map<String, Object>> rightData = varData.containsKey(rightTableName) 
-                    ? varData.get(rightTableName) 
+            List<Map<String, Object>> rightData = varData.containsKey(rightTableName)
+                    ? varData.get(rightTableName)
                     : tableData.get(rightTableName);
-            
+
             if (rightData == null) {
                 logger.warn("无法获取右表[{}]数据，跳过JOIN", rightTableName);
                 continue;
             }
-            
+
             // 执行JOIN
             if (!join.getConditions().isEmpty()) {
                 JoinCondition cond = join.getConditions().get(0);
-                result = performMemoryJoin(result, rightData, 
-                        cond.getLeftField(), cond.getRightField(), 
+                result = performMemoryJoin(result, rightData,
+                        cond.getLeftField(), cond.getRightField(),
                         join.getJoinType(),
                         parseResult.getSelectFields(),
                         parseResult.getFieldAliasMap());
             }
         }
-        
+
         logger.info("混合批处理完成: step={}, resultCount={}", step.getName(), result.size());
         return result;
     }
-    
+
     /**
      * 执行内存JOIN操作
-     * 
-     * @param leftData 左表数据
-     * @param rightData 右表数据
-     * @param leftKey 左表JOIN键
-     * @param rightKey 右表JOIN键
-     * @param joinType JOIN类型（LEFT/RIGHT/INNER）
+     *
+     * @param leftData     左表数据
+     * @param rightData    右表数据
+     * @param leftKey      左表JOIN键
+     * @param rightKey     右表JOIN键
+     * @param joinType     JOIN类型（LEFT/RIGHT/INNER）
      * @param selectFields SELECT字段列表
-     * @param aliasMap 字段别名映射
+     * @param aliasMap     字段别名映射
      * @return JOIN结果
      */
     private List<Map<String, Object>> performMemoryJoin(
@@ -454,20 +441,20 @@ public class WorkflowExecutorService {
             String joinType,
             List<String> selectFields,
             Map<String, String> aliasMap) {
-        
+
         // 构建右表索引（提升JOIN性能）
         Map<Object, List<Map<String, Object>>> rightIndex = new HashMap<>();
         for (Map<String, Object> row : rightData) {
             Object key = getFieldValue(row, rightKey);
             rightIndex.computeIfAbsent(key, k -> new ArrayList<>()).add(row);
         }
-        
+
         List<Map<String, Object>> result = new ArrayList<>();
-        
+
         for (Map<String, Object> leftRow : leftData) {
             Object key = getFieldValue(leftRow, leftKey);
             List<Map<String, Object>> matchedRights = rightIndex.get(key);
-            
+
             if (matchedRights != null && !matchedRights.isEmpty()) {
                 // 有匹配，合并数据
                 for (Map<String, Object> rightRow : matchedRights) {
@@ -475,43 +462,43 @@ public class WorkflowExecutorService {
                     merged.putAll(rightRow);
                     result.add(filterFields(merged, selectFields, aliasMap));
                 }
-            } else if ("LEFT".equalsIgnoreCase(joinType)) {
+            } else if (JoinType.LEFT.matches(joinType)) {
                 // LEFT JOIN: 无匹配也保留左表记录
                 result.add(filterFields(new LinkedHashMap<>(leftRow), selectFields, aliasMap));
             }
         }
-        
+
         return result;
     }
-    
+
     /**
      * 获取字段值（支持别名前缀）
      */
     private Object getFieldValue(Map<String, Object> row, String fieldName) {
         // 移除可能的别名前缀
-        String cleanField = fieldName.contains(".") 
-                ? fieldName.substring(fieldName.indexOf(".") + 1) 
+        String cleanField = fieldName.contains(".")
+                ? fieldName.substring(fieldName.indexOf(".") + 1)
                 : fieldName;
         return row.get(cleanField);
     }
-    
+
     /**
      * 根据SELECT字段过滤并应用别名
      */
-    private Map<String, Object> filterFields(Map<String, Object> row, 
-            List<String> selectFields, Map<String, String> aliasMap) {
-        if (selectFields == null || selectFields.isEmpty() || 
-            (selectFields.size() == 1 && "*".equals(selectFields.get(0)))) {
+    private Map<String, Object> filterFields(Map<String, Object> row,
+                                             List<String> selectFields, Map<String, String> aliasMap) {
+        if (selectFields == null || selectFields.isEmpty() ||
+                (selectFields.size() == 1 && BatchDefaults.WILDCARD.equals(selectFields.get(0)))) {
             return row;
         }
-        
+
         Map<String, Object> filtered = new LinkedHashMap<>();
         for (String field : selectFields) {
-            String cleanField = field.contains(".") 
-                    ? field.substring(field.indexOf(".") + 1) 
+            String cleanField = field.contains(".")
+                    ? field.substring(field.indexOf(".") + 1)
                     : field;
-            String outputKey = aliasMap != null && aliasMap.containsKey(field) 
-                    ? aliasMap.get(field) 
+            String outputKey = aliasMap != null && aliasMap.containsKey(field)
+                    ? aliasMap.get(field)
                     : cleanField;
             if (row.containsKey(cleanField)) {
                 filtered.put(outputKey, row.get(cleanField));
@@ -519,12 +506,12 @@ public class WorkflowExecutorService {
         }
         return filtered;
     }
-    
+
     /**
      * 将结果写入结果表（用于批处理执行后的结果存储）
-     * 
-     * @param data 要写入的数据列表
-     * @param tableName 目标表名
+     *
+     * @param data        要写入的数据列表
+     * @param tableName   目标表名
      * @param executionId 执行ID
      */
     private void writeToResultTable(List<Map<String, Object>> data, String tableName, Long executionId) {
@@ -532,9 +519,9 @@ public class WorkflowExecutorService {
             logger.warn("writeToResultTable: 没有数据需要写入");
             return;
         }
-        
+
         logger.info("批处理结果准备写入: tableName={}, count={}", tableName, data.size());
-        
+
         try {
             // 调用tableService将数据写入结果表
             tableService.saveWorkflowResult(tableName, data, executionId);
@@ -547,9 +534,9 @@ public class WorkflowExecutorService {
 
     /**
      * 普通模式执行（原有逻辑）
-     * 
+     * <p>
      * 顺序执行工作流的各个步骤，支持内存JOIN和步骤间变量传递。
-     * 
+     *
      * @param workflow 工作流配置
      * @return 执行记录
      */
@@ -797,7 +784,7 @@ public class WorkflowExecutorService {
      * <li>逗号分隔格式：field1,field2,field3</li>
      * </ul>
      * </p>
-     * 
+     *
      * @param indexFieldsConfig 索引字段配置字符串
      * @return 字段名列表
      */
@@ -819,7 +806,7 @@ public class WorkflowExecutorService {
         }
 
         // 逗号分隔格式
-        String[] parts = trimmed.split(",");
+        String[] parts = trimmed.split(BatchDefaults.DEFAULT_SEPARATOR);
         List<String> fields = new ArrayList<>();
         for (String part : parts) {
             String field = part.trim();
@@ -840,16 +827,16 @@ public class WorkflowExecutorService {
      * <li><b>固定索引</b>：execution_id 和 execution_time 始终创建索引</li>
      * </ol>
      * </p>
-     * 
+     *
      * @param workflow    工作流配置
      * @param steps       工作流步骤列表
      * @param lastResult  最终执行结果
      * @param outputTable 输出表名
      */
     private void createResultTableIndexes(Workflow workflow, List<WorkflowStep> steps,
-            List<Map<String, Object>> lastResult, String outputTable) {
+                                          List<Map<String, Object>> lastResult, String outputTable) {
         // 固定字段索引（始终创建）
-        List<String> fixedIndexFields = List.of("execution_id", "execution_time");
+        List<String> fixedIndexFields = SystemFields.FIXED_INDEX_FIELDS;
 
         // 确定业务字段索引
         List<String> businessIndexFields;
@@ -891,7 +878,7 @@ public class WorkflowExecutorService {
     /**
      * 执行常量步骤：解析 config 中的常量定义并放入上下文
      * config 格式: {"constants": {"key1": "value1", "key2": "value2"}}
-     * 
+     * <p>
      * 常量命名空间：使用步骤的 resultVariable 作为前缀
      * 例如：resultVariable="orderConstant", key="productIds"
      * 则存储为 "orderConstant.productIds"，SQL中使用 ${orderConstant.productIds}
@@ -907,12 +894,12 @@ public class WorkflowExecutorService {
         // 获取结果变量名作为常量命名空间，默认使用 "const"
         String namespace = step.getResultVariable();
         if (namespace == null || namespace.isBlank()) {
-            namespace = "const";
+            namespace = BatchDefaults.DEFAULT_NAMESPACE;
         }
 
         try {
             Map<String, Object> configMap = objectMapper.readValue(config, Map.class);
-            Map<String, Object> constants = (Map<String, Object>) configMap.get("constants");
+            Map<String, Object> constants = (Map<String, Object>) configMap.get(ConfigKeys.CONSTANTS);
 
             if (constants != null) {
                 // 将常量放入上下文，使用 namespace.xxx 格式
@@ -921,7 +908,7 @@ public class WorkflowExecutorService {
                     context.put(key, entry.getValue());
                     logger.debug("设置常量: {} = {}", key, entry.getValue());
                 }
-                logger.info("CONSTANT 步骤 {} 设置了 {} 个常量 (命名空间: {})", 
+                logger.info("CONSTANT 步骤 {} 设置了 {} 个常量 (命名空间: {})",
                         step.getName(), constants.size(), namespace);
             }
         } catch (Exception e) {
@@ -939,8 +926,8 @@ public class WorkflowExecutorService {
      * 1. VARIABLE 模式: {"loopSource": "VARIABLE", "loopVariable": "stepName",
      * "loopField": "fieldName", "loopSql": "..."}
      * 2. CONSTANT 模式: {"loopSource": "CONSTANT", "constantValue": "a,b,c",
-     * "separator": ",", "loopSql": "..."}
-     * 
+     * "separator": BatchDefaults.DEFAULT_SEPARATOR, "loopSql": "..."}
+     * <p>
      * 批处理支持:
      * 如果 LOOP 步骤启用了批处理 (batchEnabled=1)，每次迭代的 SQL 将使用 Spring Batch 执行
      */
@@ -953,8 +940,8 @@ public class WorkflowExecutorService {
 
         try {
             Map<String, Object> configMap = objectMapper.readValue(config, Map.class);
-            String loopSource = (String) configMap.getOrDefault("loopSource", "VARIABLE");
-            String loopSql = (String) configMap.get("loopSql");
+            String loopSource = (String) configMap.getOrDefault(ConfigKeys.LOOP_SOURCE, LoopSourceType.VARIABLE.getCode());
+            String loopSql = (String) configMap.get(ConfigKeys.LOOP_SQL);
 
             if (loopSql == null || loopSql.isBlank()) {
                 throw new RuntimeException("LOOP 步骤必须配置 loopSql");
@@ -969,10 +956,10 @@ public class WorkflowExecutorService {
             // 获取循环值列表
             List<Object> loopValues = new ArrayList<>();
 
-            if ("CONSTANT".equals(loopSource)) {
+            if (LoopSourceType.CONSTANT.matches(loopSource)) {
                 // 常量分割模式
-                String constantValue = (String) configMap.get("constantValue");
-                String separator = (String) configMap.getOrDefault("separator", ",");
+                String constantValue = (String) configMap.get(ConfigKeys.CONSTANT_VALUE);
+                String separator = (String) configMap.getOrDefault(ConfigKeys.SEPARATOR, BatchDefaults.DEFAULT_SEPARATOR);
                 if (constantValue != null && !constantValue.isBlank()) {
                     for (String val : constantValue.split(separator)) {
                         loopValues.add(val.trim());
@@ -980,8 +967,8 @@ public class WorkflowExecutorService {
                 }
             } else {
                 // 变量遍历模式
-                String loopVariable = (String) configMap.get("loopVariable");
-                String loopField = (String) configMap.get("loopField");
+                String loopVariable = (String) configMap.get(ConfigKeys.LOOP_VARIABLE);
+                String loopField = (String) configMap.get(ConfigKeys.LOOP_FIELD);
 
                 Object varData = context.get(loopVariable);
                 if (varData instanceof List) {
@@ -995,7 +982,7 @@ public class WorkflowExecutorService {
                 }
             }
 
-            logger.info("LOOP 步骤 {} 将执行 {} 次迭代{}", step.getName(), loopValues.size(), 
+            logger.info("LOOP 步骤 {} 将执行 {} 次迭代{}", step.getName(), loopValues.size(),
                     useBatch ? " (批处理模式)" : "");
 
             // 执行循环
@@ -1006,20 +993,17 @@ public class WorkflowExecutorService {
                 Object loopValue = loopValues.get(i);
 
                 // 设置循环上下文变量
-                context.put("loop.index", i);
-                context.put("loop.value", loopValue);
-                context.put("loop.total", total);
+                context.put(LoopContextKeys.INDEX, i);
+                context.put(LoopContextKeys.VALUE, loopValue);
+                context.put(LoopContextKeys.TOTAL, total);
 
                 // 替换 SQL 中的循环占位符
-                String sql = loopSql
-                        .replace("${loop.index}", String.valueOf(i))
-                        .replace("${loop.value}", String.valueOf(loopValue))
-                        .replace("${loop.total}", String.valueOf(total));
+                String sql = LoopContextKeys.replacePlaceholders(loopSql, i, loopValue, total);
 
                 logger.debug("LOOP 迭代 {}/{}: value={}, sql={}", i + 1, total, loopValue, sql);
 
                 List<Map<String, Object>> iterResult;
-                
+
                 if (useBatch && asyncJobLauncher != null && dataExtractionJob != null) {
                     // 批处理模式：使用 Spring Batch 执行
                     iterResult = executeLoopIterationBatch(step, sql, i, loopValue);
@@ -1033,9 +1017,9 @@ public class WorkflowExecutorService {
             }
 
             // 清理循环变量
-            context.remove("loop.index");
-            context.remove("loop.value");
-            context.remove("loop.total");
+            context.remove(LoopContextKeys.INDEX);
+            context.remove(LoopContextKeys.VALUE);
+            context.remove(LoopContextKeys.TOTAL);
 
             logger.info("LOOP 步骤 {} 完成，共产生 {} 条结果", step.getName(), allResults.size());
             return allResults;
@@ -1055,16 +1039,15 @@ public class WorkflowExecutorService {
             // 使用 BatchStepResolver 解析 SQL，获取表名和 ID 列
             // 注意：这里直接从 SQL 提取信息，使用 LOOP 步骤的批处理配置
             String tableName = extractTableNameFromSql(sql);
-            String idColumn = step.getIdColumn() != null && !step.getIdColumn().isEmpty() 
-                    ? step.getIdColumn() : "id";
-            int partitionCount = step.getPartitionCount() != null ? step.getPartitionCount() : 10;
-            int chunkSize = step.getChunkSize() != null ? step.getChunkSize() : 1000;
-            String cacheStrategy = step.getCacheStrategy() != null ? step.getCacheStrategy() : "FILE";
-            
-            String cacheKey = String.format("loop_%d_step%d_iter%d", 
+            String idColumn = BatchDefaults.getIdColumn(step.getIdColumn());
+            int partitionCount = BatchDefaults.getPartitionCount(step.getPartitionCount());
+            int chunkSize = BatchDefaults.getChunkSize(step.getChunkSize());
+            String cacheStrategy = CacheStrategy.Type.fromCode(step.getCacheStrategy()).name();
+
+            String cacheKey = String.format("loop_%d_step%d_iter%d",
                     step.getWorkflowId(), step.getStepOrder(), iteration);
 
-            logger.info("LOOP批处理迭代 {}: table={}, idColumn={}, partitions={}", 
+            logger.info("LOOP批处理迭代 {}: table={}, idColumn={}, partitions={}",
                     iteration, tableName, idColumn, partitionCount);
 
             // 构建 Job 参数
@@ -1086,7 +1069,7 @@ public class WorkflowExecutorService {
 
             // 同步执行（等待完成）- LOOP 迭代需要顺序完成
             org.springframework.batch.core.JobExecution jobExecution = asyncJobLauncher.run(dataExtractionJob, params);
-            
+
             // 等待完成
             while (jobExecution.isRunning()) {
                 Thread.sleep(100);
@@ -1122,6 +1105,6 @@ public class WorkflowExecutorService {
                 return parts[0].replace("`", "");
             }
         }
-        return "unknown_table";
+        return BatchDefaults.UNKNOWN_TABLE;
     }
 }

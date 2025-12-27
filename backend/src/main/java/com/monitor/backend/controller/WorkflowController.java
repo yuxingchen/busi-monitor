@@ -1,15 +1,17 @@
 package com.monitor.backend.controller;
 
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import com.monitor.backend.batch.SqlBatchAnalyzer;
 import com.monitor.backend.common.ApiResponse;
+import com.monitor.backend.constant.WorkflowStepType;
+import com.monitor.backend.entity.Workflow;
+import com.monitor.backend.entity.WorkflowExecution;
+import com.monitor.backend.entity.WorkflowStep;
 import com.monitor.backend.exception.BusinessException;
 import com.monitor.backend.exception.ErrorCode;
+import com.monitor.backend.mapper.WorkflowExecutionMapper;
+import com.monitor.backend.mapper.WorkflowMapper;
+import com.monitor.backend.mapper.WorkflowStepMapper;
+import com.monitor.backend.service.WorkflowExecutorService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -18,13 +20,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
-import com.monitor.backend.entity.Workflow;
-import com.monitor.backend.entity.WorkflowExecution;
-import com.monitor.backend.entity.WorkflowStep;
-import com.monitor.backend.mapper.WorkflowExecutionMapper;
-import com.monitor.backend.mapper.WorkflowMapper;
-import com.monitor.backend.mapper.WorkflowStepMapper;
-import com.monitor.backend.service.WorkflowExecutorService;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 工作流管理控制器
@@ -79,7 +79,7 @@ public class WorkflowController {
         // 校验批处理SQL支持性
         List<String> batchErrors = validateBatchSteps(workflow.getSteps());
         if (!batchErrors.isEmpty()) {
-            return ApiResponse.fail(ErrorCode.WORKFLOW_STEP_INVALID, 
+            return ApiResponse.fail(ErrorCode.WORKFLOW_STEP_INVALID,
                     "以下步骤的SQL不支持批处理: " + String.join("; ", batchErrors));
         }
 
@@ -119,7 +119,7 @@ public class WorkflowController {
         // 校验批处理SQL支持性
         List<String> batchErrors = validateBatchSteps(workflow.getSteps());
         if (!batchErrors.isEmpty()) {
-            return ApiResponse.fail(ErrorCode.WORKFLOW_STEP_INVALID, 
+            return ApiResponse.fail(ErrorCode.WORKFLOW_STEP_INVALID,
                     "以下步骤的SQL不支持批处理: " + String.join("; ", batchErrors));
         }
 
@@ -198,7 +198,7 @@ public class WorkflowController {
         // 构建 WorkflowStep
         WorkflowStep step = new WorkflowStep();
         step.setName((String) request.get("name"));
-        step.setStepType((String) request.getOrDefault("stepType", "SQL"));
+        step.setStepType((String) request.getOrDefault("stepType", WorkflowStepType.SQL.getCode()));
         step.setDatasourceId(request.get("datasourceId") != null ? Long.valueOf(request.get("datasourceId").toString()) : null);
         step.setSqlScript((String) request.get("sqlScript"));
         step.setResultVariable((String) request.get("resultVariable"));
@@ -216,7 +216,7 @@ public class WorkflowController {
                             context.put(prevStep.getResultVariable(), result);
                         }
                     } catch (Exception e) {
-                        return ApiResponse.fail(ErrorCode.WORKFLOW_EXECUTE_FAILED, 
+                        return ApiResponse.fail(ErrorCode.WORKFLOW_EXECUTE_FAILED,
                                 "执行前置节点 " + prevStep.getName() + " 失败: " + e.getMessage());
                     }
                 }
@@ -252,7 +252,7 @@ public class WorkflowController {
 
         for (WorkflowStep step : steps) {
             if (step.getBatchEnabled() != null && step.getBatchEnabled() == 1
-                    && ("SQL".equals(step.getStepType()) || "LOOP".equals(step.getStepType()))
+                    && (WorkflowStepType.SQL.matches(step.getStepType()) || WorkflowStepType.LOOP.matches(step.getStepType()))
                     && step.getSqlScript() != null) {
 
                 SqlBatchAnalyzer.AnalysisResult result = sqlBatchAnalyzer.analyze(step.getSqlScript());

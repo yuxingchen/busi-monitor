@@ -1,7 +1,6 @@
 package com.monitor.backend.batch;
 
-import java.util.Map;
-
+import com.monitor.backend.service.IntermediateStorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.Job;
@@ -23,7 +22,7 @@ import org.springframework.core.task.TaskExecutor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 
-import com.monitor.backend.service.IntermediateStorageService;
+import java.util.Map;
 
 /**
  * 工作流批处理Job配置
@@ -255,7 +254,7 @@ public class WorkflowBatchJobConfig {
     public ItemReader<Map<String, Object>> cacheItemReader(
             @Value("#{jobParameters['cacheKey']}") String cacheKey) {
 
-        return new ItemReader<Map<String, Object>>() {
+        return new ItemReader<>() {
             private java.util.Iterator<Map<String, Object>> iterator;
             private int offset = 0;
             private final int batchSize = 1000;

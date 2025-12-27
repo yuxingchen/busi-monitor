@@ -1,29 +1,29 @@
 package com.monitor.backend.service;
 
-import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledFuture;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
-import org.springframework.scheduling.support.CronTrigger;
-import org.springframework.stereotype.Service;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.monitor.backend.alarm.AlarmContext;
 import com.monitor.backend.alarm.AlarmService;
+import com.monitor.backend.constant.BatchDefaults;
+import com.monitor.backend.constant.CompareOperator;
 import com.monitor.backend.entity.MonitorTemplate;
 import com.monitor.backend.entity.ServerAsset;
 import com.monitor.backend.entity.ServerMonitorTask;
 import com.monitor.backend.mapper.MonitorTemplateMapper;
 import com.monitor.backend.mapper.ServerAssetMapper;
 import com.monitor.backend.mapper.ServerMonitorTaskMapper;
-
 import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.scheduling.support.CronTrigger;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledFuture;
 
 /**
  * 服务器监控任务定时调度服务
@@ -46,11 +46,11 @@ public class ServerMonitorTaskScheduler {
     private final Map<Long, ScheduledFuture<?>> scheduledTasks = new ConcurrentHashMap<>();
 
     public ServerMonitorTaskScheduler(ServerMonitorTaskMapper taskMapper,
-            ServerAssetMapper serverMapper,
-            MonitorTemplateMapper templateMapper,
-            SshExecutorService sshExecutorService,
-            AlarmService alarmService,
-            ObjectMapper objectMapper) {
+                                      ServerAssetMapper serverMapper,
+                                      MonitorTemplateMapper templateMapper,
+                                      SshExecutorService sshExecutorService,
+                                      AlarmService alarmService,
+                                      ObjectMapper objectMapper) {
         this.taskMapper = taskMapper;
         this.serverMapper = serverMapper;
         this.templateMapper = templateMapper;
@@ -186,7 +186,7 @@ public class ServerMonitorTaskScheduler {
             }
 
             double thresholdVal = threshold.doubleValue();
-            boolean isAlarm = evaluateThreshold(value, operator, thresholdVal);
+            boolean isAlarm = CompareOperator.fromSymbol(operator).compare(value, thresholdVal);
 
             if (isAlarm) {
                 logger.warn("服务器告警触发: {} [{}] - 值: {} {} {}",
@@ -219,7 +219,7 @@ public class ServerMonitorTaskScheduler {
 
                 // 设置告警渠道
                 if (task.getAlarmChannels() != null && !task.getAlarmChannels().isEmpty()) {
-                    List<Long> channelIds = java.util.Arrays.stream(task.getAlarmChannels().split(","))
+                    List<Long> channelIds = java.util.Arrays.stream(task.getAlarmChannels().split(BatchDefaults.DEFAULT_SEPARATOR))
                             .map(String::trim)
                             .filter(s -> !s.isEmpty())
                             .map(Long::parseLong)
@@ -246,17 +246,6 @@ public class ServerMonitorTaskScheduler {
         } catch (NumberFormatException e) {
             return null;
         }
-    }
-
-    private boolean evaluateThreshold(double value, String operator, double threshold) {
-        return switch (operator) {
-            case ">" -> value > threshold;
-            case ">=" -> value >= threshold;
-            case "<" -> value < threshold;
-            case "<=" -> value <= threshold;
-            case "=" -> Math .abs(value - threshold) < 0.0001;
-            default -> false ;
-        };
     }
 
     private String extractParam(String paramsJson, String key, String defaultValue) {

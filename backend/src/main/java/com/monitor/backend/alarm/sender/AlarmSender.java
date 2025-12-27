@@ -1,9 +1,9 @@
 package com.monitor.backend.alarm.sender;
 
-import java.util.Map;
-
 import com.monitor.backend.entity.AlarmChannel;
 import com.monitor.backend.entity.AlarmTemplate;
+
+import java.util.Map;
 
 /**
  * 告警发送器接口

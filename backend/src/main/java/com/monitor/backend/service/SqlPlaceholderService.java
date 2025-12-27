@@ -1,6 +1,7 @@
 package com.monitor.backend.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.monitor.backend.constant.BatchDefaults;
 import com.monitor.backend.mapper.MonitorRecordMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -263,7 +264,7 @@ public class SqlPlaceholderService {
         }
 
         // 处理通配符 * - 提取所有行的某字段
-        if ("*".equals(indexStr) && fieldName != null) {
+        if (BatchDefaults.WILDCARD.equals(indexStr) && fieldName != null) {
             return rows.stream()
                     .map(row -> row.get(fieldName))
                     .filter(v -> v != null)
@@ -273,7 +274,7 @@ public class SqlPlaceholderService {
 
         // 处理索引访问
         int index = 0;
-        if (indexStr != null && !indexStr.equals("*")) {
+        if (indexStr != null && !indexStr.equals(BatchDefaults.WILDCARD)) {
             try {
                 index = Integer.parseInt(indexStr);
             } catch (NumberFormatException e) {

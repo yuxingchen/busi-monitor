@@ -1,21 +1,15 @@
 package com.monitor.backend.service;
 
-import java.util.List;
-import java.util.Map;
-
+import com.monitor.backend.cache.*;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import com.monitor.backend.cache.CacheStrategy;
-import com.monitor.backend.cache.ElasticsearchCacheStrategy;
-import com.monitor.backend.cache.FileCacheStrategy;
-import com.monitor.backend.cache.RedisCacheStrategy;
-import com.monitor.backend.cache.TempTableCacheStrategy;
-
-import jakarta.annotation.PostConstruct;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 中间结果缓存服务

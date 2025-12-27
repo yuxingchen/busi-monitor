@@ -1,8 +1,9 @@
 package com.monitor.backend.service;
 
 import com.monitor.backend.component.WorkflowSqlParser;
-import com.monitor.backend.entity.WorkflowStep;
 import com.monitor.backend.component.WorkflowSqlParser.ParseResult;
+import com.monitor.backend.constant.WorkflowStepType;
+import com.monitor.backend.entity.WorkflowStep;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -85,7 +86,7 @@ public class IndexFieldCollector {
         
         // 3. 遍历所有SQL节点
         for (WorkflowStep step : steps) {
-            if (!"SQL".equals(step.getStepType()) || step.getSqlScript() == null) {
+            if (!WorkflowStepType.SQL.matches(step.getStepType()) || step.getSqlScript() == null) {
                 continue;
             }
             

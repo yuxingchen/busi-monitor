@@ -1,11 +1,10 @@
 package com.monitor.backend.batch;
 
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.List;
-
+import com.monitor.backend.constant.ExecutionStatus;
+import com.monitor.backend.entity.BatchPerformanceLog;
+import com.monitor.backend.entity.WorkflowExecution;
+import com.monitor.backend.mapper.BatchPerformanceLogMapper;
+import com.monitor.backend.mapper.WorkflowExecutionMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.JobExecution;
@@ -14,10 +13,11 @@ import org.springframework.batch.core.StepExecution;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import com.monitor.backend.entity.BatchPerformanceLog;
-import com.monitor.backend.entity.WorkflowExecution;
-import com.monitor.backend.mapper.BatchPerformanceLogMapper;
-import com.monitor.backend.mapper.WorkflowExecutionMapper;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Spring Batch Job 完成监听器
@@ -82,14 +82,14 @@ public class BatchJobCompletionListener implements JobExecutionListener {
 
             switch (jobExecution.getStatus()) {
                 case COMPLETED:
-                    workflowStatus = "SUCCESS";
+                    workflowStatus = ExecutionStatus.SUCCESS.getCode();
                     break;
                 case FAILED:
-                    workflowStatus = "FAILED";
+                    workflowStatus = ExecutionStatus.FAILED.getCode();
                     errorMessage = extractErrorMessage(jobExecution);
                     break;
                 case STOPPED:
-                    workflowStatus = "STOPPED";
+                    workflowStatus = ExecutionStatus.STOPPED.getCode();
                     break;
                 default:
                     workflowStatus = "BATCH_" + batchStatus;

@@ -1,22 +1,19 @@
 package com.monitor.backend.component;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.monitor.backend.constant.BatchDefaults;
+import com.monitor.backend.constant.SystemFields;
 import com.monitor.backend.entity.Workflow;
 import com.monitor.backend.entity.WorkflowStep;
 import com.monitor.backend.mapper.WorkflowMapper;
 import com.monitor.backend.service.DynamicTableService;
 import com.monitor.backend.service.IndexFieldCollector;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+import java.util.*;
 
 /**
  * 工作流结果表写入器
@@ -87,7 +84,7 @@ public class WorkflowResultWriter {
     public void createResultTableIndexes(Workflow workflow, List<WorkflowStep> steps,
             List<Map<String, Object>> lastResult, String outputTable) {
         // 固定字段索引（始终创建）
-        List<String> fixedIndexFields = List.of("execution_id", "execution_time");
+        List<String> fixedIndexFields = SystemFields.FIXED_INDEX_FIELDS;
 
         // 确定业务字段索引
         List<String> businessIndexFields;
@@ -155,7 +152,7 @@ public class WorkflowResultWriter {
         }
 
         // 逗号分隔格式
-        String[] parts = trimmed.split(",");
+        String[] parts = trimmed.split(BatchDefaults.DEFAULT_SEPARATOR);
         List<String> fields = new ArrayList<>();
         for (String part : parts) {
             String field = part.trim();

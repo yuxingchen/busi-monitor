@@ -1,7 +1,8 @@
 package com.monitor.backend.component;
 
+import com.monitor.backend.constant.BatchDefaults;
 import org.springframework.stereotype.Component;
-import org.springframework.stereotype.Service;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,7 +28,7 @@ public class IpRangeParser {
         }
         
         // 分割逗号
-        String[] parts = input.split(",");
+        String[] parts = input.split(BatchDefaults.DEFAULT_SEPARATOR);
         for (String part : parts) {
             part = part.trim();
             if (part.contains("/")) {

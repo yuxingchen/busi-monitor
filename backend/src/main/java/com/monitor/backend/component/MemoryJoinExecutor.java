@@ -1,12 +1,18 @@
 package com.monitor.backend.component;
 
+import com.monitor.backend.constant.JoinType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.stereotype.Service;
 
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 /**
@@ -283,7 +289,7 @@ public class MemoryJoinExecutor {
 
                 result.add(merged);
             }
-        } else if ("LEFT".equalsIgnoreCase(joinType) || "FULL".equalsIgnoreCase(joinType)) {
+        } else if (JoinType.LEFT.matches(joinType) || JoinType.FULL.matches(joinType)) {
             // LEFT JOIN：保留左表行，右表字段为null
             Map<String, Object> merged = new LinkedHashMap<>();
             for (Map.Entry<String, Object> entry : leftRow.entrySet()) {

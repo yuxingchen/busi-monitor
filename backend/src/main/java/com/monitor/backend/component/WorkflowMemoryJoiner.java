@@ -1,14 +1,12 @@
 package com.monitor.backend.component;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-
+import com.monitor.backend.constant.BatchDefaults;
+import com.monitor.backend.constant.JoinType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+
+import java.util.*;
 
 /**
  * 工作流内存JOIN执行器
@@ -62,7 +60,7 @@ public class WorkflowMemoryJoiner {
                     merged.putAll(rightRow);
                     result.add(filterFields(merged, selectFields, aliasMap));
                 }
-            } else if ("LEFT".equalsIgnoreCase(joinType)) {
+            } else if (JoinType.LEFT.matches(joinType)) {
                 // LEFT JOIN: 无匹配也保留左表记录
                 result.add(filterFields(new LinkedHashMap<>(leftRow), selectFields, aliasMap));
             }
@@ -70,7 +68,7 @@ public class WorkflowMemoryJoiner {
         }
         
         // RIGHT JOIN 处理
-        if ("RIGHT".equalsIgnoreCase(joinType)) {
+        if (JoinType.RIGHT.matches(joinType)) {
             Map<Object, List<Map<String, Object>>> leftIndex = buildIndex(leftData, leftKey);
             for (Map<String, Object> rightRow : rightData) {
                 Object key = getFieldValue(rightRow, rightKey);
@@ -116,7 +114,7 @@ public class WorkflowMemoryJoiner {
     public Map<String, Object> filterFields(Map<String, Object> row, 
             List<String> selectFields, Map<String, String> aliasMap) {
         if (selectFields == null || selectFields.isEmpty() || 
-            (selectFields.size() == 1 && "*".equals(selectFields.get(0)))) {
+            (selectFields.size() == 1 && BatchDefaults.WILDCARD.equals(selectFields.get(0)))) {
             return row;
         }
         

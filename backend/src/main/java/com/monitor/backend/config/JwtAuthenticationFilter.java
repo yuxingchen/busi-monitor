@@ -1,5 +1,6 @@
 package com.monitor.backend.config;
 
+import com.monitor.backend.constant.AuthConstants;
 import com.monitor.backend.service.JwtTokenService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -32,10 +33,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     HttpServletResponse response, 
                                     FilterChain filterChain) throws ServletException, IOException {
         
-        String authHeader = request.getHeader("Authorization");
+        String authHeader = request.getHeader(AuthConstants.AUTHORIZATION_HEADER);
         
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
+        if (AuthConstants.isBearerToken(authHeader)) {
+            String token = AuthConstants.extractToken(authHeader);
             String username = jwtTokenService.validateTokenAndGetUsername(token);
             
             if (username != null) {

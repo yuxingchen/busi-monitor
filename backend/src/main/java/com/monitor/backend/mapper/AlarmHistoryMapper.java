@@ -1,11 +1,10 @@
 package com.monitor.backend.mapper;
 
-import java.util.List;
-
+import com.monitor.backend.entity.AlarmHistory;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
-import com.monitor.backend.entity.AlarmHistory;
+import java.util.List;
 
 /**
  * 告警历史记录 Mapper 接口

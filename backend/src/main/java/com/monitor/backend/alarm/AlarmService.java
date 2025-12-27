@@ -1,16 +1,7 @@
 package com.monitor.backend.alarm;
 
-import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Service;
-
 import com.monitor.backend.alarm.sender.AlarmSender;
+import com.monitor.backend.constant.CompareOperator;
 import com.monitor.backend.entity.AlarmActive;
 import com.monitor.backend.entity.AlarmChannel;
 import com.monitor.backend.entity.AlarmHistory;
@@ -19,6 +10,15 @@ import com.monitor.backend.mapper.AlarmActiveMapper;
 import com.monitor.backend.mapper.AlarmChannelMapper;
 import com.monitor.backend.mapper.AlarmHistoryMapper;
 import com.monitor.backend.mapper.AlarmTemplateMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 告警核心服务
@@ -31,7 +31,9 @@ public class AlarmService {
 
     private static final Logger logger = LoggerFactory.getLogger(AlarmService.class);
 
-    /** 默认抑制时间（分钟） */
+    /**
+     * 默认抑制时间（分钟）
+     */
     private static final int DEFAULT_SUPPRESS_MINUTES = 30;
 
     private final List<AlarmSender> senders;
@@ -201,7 +203,7 @@ public class AlarmService {
                 "%s: 当前值 %.2f %s 阈值 %.2f",
                 context.getTaskName() != null ? context.getTaskName() : "任务" + context.getTaskId(),
                 context.getCurrentValue(),
-                context.getOperator() != null ? context.getOperator() : ">",
+                context.getOperator() != null ? context.getOperator() : CompareOperator.GREATER_THAN.getSymbol(),
                 context.getThresholdValue());
     }
 
@@ -221,7 +223,7 @@ public class AlarmService {
                 context.getThresholdValue() != null ? String.format("%.2f", context.getThresholdValue()) : "");
         result = result.replace("${taskName}", context.getTaskName() != null ? context.getTaskName() : "");
         result = result.replace("${taskId}", context.getTaskId() != null ? context.getTaskId().toString() : "");
-        result = result.replace("${operator}", context.getOperator() != null ? context.getOperator() : ">");
+        result = result.replace("${operator}", context.getOperator() != null ? context.getOperator() : CompareOperator.GREATER_THAN.getSymbol());
         result = result.replace("${triggerType}", context.getTriggerType() != null ? context.getTriggerType() : "");
         result = result.replace("${level}", context.getLevel() != null ? context.getLevel() : "WARNING");
 

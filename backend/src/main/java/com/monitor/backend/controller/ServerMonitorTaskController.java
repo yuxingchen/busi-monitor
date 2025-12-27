@@ -1,13 +1,21 @@
 package com.monitor.backend.controller;
 
-import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.monitor.backend.alarm.AlarmContext;
+import com.monitor.backend.alarm.AlarmService;
 import com.monitor.backend.common.ApiResponse;
+import com.monitor.backend.constant.BatchDefaults;
+import com.monitor.backend.constant.CompareOperator;
+import com.monitor.backend.entity.MonitorTemplate;
+import com.monitor.backend.entity.ServerAsset;
+import com.monitor.backend.entity.ServerMonitorTask;
 import com.monitor.backend.exception.BusinessException;
 import com.monitor.backend.exception.ErrorCode;
+import com.monitor.backend.mapper.MonitorTemplateMapper;
+import com.monitor.backend.mapper.ServerAssetMapper;
+import com.monitor.backend.mapper.ServerMonitorTaskMapper;
+import com.monitor.backend.service.ServerMonitorTaskScheduler;
+import com.monitor.backend.service.SshExecutorService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -15,17 +23,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.monitor.backend.alarm.AlarmContext;
-import com.monitor.backend.alarm.AlarmService;
-import com.monitor.backend.entity.MonitorTemplate;
-import com.monitor.backend.entity.ServerAsset;
-import com.monitor.backend.entity.ServerMonitorTask;
-import com.monitor.backend.mapper.MonitorTemplateMapper;
-import com.monitor.backend.mapper.ServerAssetMapper;
-import com.monitor.backend.mapper.ServerMonitorTaskMapper;
-import com.monitor.backend.service.ServerMonitorTaskScheduler;
-import com.monitor.backend.service.SshExecutorService;
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 服务器监控任务控制器
@@ -48,12 +49,12 @@ public class ServerMonitorTaskController {
     private final ServerMonitorTaskScheduler taskScheduler;
 
     public ServerMonitorTaskController(ServerMonitorTaskMapper taskMapper,
-            ServerAssetMapper serverMapper,
-            MonitorTemplateMapper templateMapper,
-            SshExecutorService sshExecutorService,
-            AlarmService alarmService,
-            ObjectMapper objectMapper,
-            ServerMonitorTaskScheduler taskScheduler) {
+                                       ServerAssetMapper serverMapper,
+                                       MonitorTemplateMapper templateMapper,
+                                       SshExecutorService sshExecutorService,
+                                       AlarmService alarmService,
+                                       ObjectMapper objectMapper,
+                                       ServerMonitorTaskScheduler taskScheduler) {
         this.taskMapper = taskMapper;
         this.serverMapper = serverMapper;
         this.templateMapper = templateMapper;
@@ -109,9 +110,9 @@ public class ServerMonitorTaskController {
 
         taskMapper.insert(task);
         taskScheduler.refreshTask(task.getId());
-        
+
         Map<String, Object> data = new HashMap<>();
-        data.put("id", task.getId());
+        data.put(BatchDefaults.DEFAULT_ID_COLUMN, task.getId());
         return ApiResponse.ok("添加成功", data);
     }
 
@@ -234,7 +235,7 @@ public class ServerMonitorTaskController {
             task.setLastRunStatus("FAILED");
             task.setLastRunValue(e.getMessage());
             taskMapper.updateRunStatus(task);
-            
+
             throw new BusinessException(ErrorCode.SSH_EXECUTE_FAILED, e.getMessage());
         }
     }
@@ -262,7 +263,7 @@ public class ServerMonitorTaskController {
             }
 
             double thresholdVal = threshold.doubleValue();
-            boolean isAlarm = evaluateThreshold(value, operator, thresholdVal);
+            boolean isAlarm = CompareOperator.fromSymbol(operator).compare(value, thresholdVal);
 
             if (isAlarm) {
                 log.warn("服务器告警触发: {} [{}] - 值: {} {} {}",
@@ -292,7 +293,7 @@ public class ServerMonitorTaskController {
                 context.setExtraParams(extraParams);
 
                 if (task.getAlarmChannels() != null && !task.getAlarmChannels().isEmpty()) {
-                    List<Long> channelIds = java.util.Arrays.stream(task.getAlarmChannels().split(","))
+                    List<Long> channelIds = java.util.Arrays.stream(task.getAlarmChannels().split(BatchDefaults.DEFAULT_SEPARATOR))
                             .map(String::trim)
                             .filter(s -> !s.isEmpty())
                             .map(Long::parseLong)
@@ -321,16 +322,7 @@ public class ServerMonitorTaskController {
         }
     }
 
-    private boolean evaluateThreshold(double value, String operator, double threshold) {
-        return switch (operator) {
-            case ">" -> value > threshold;
-            case ">=" -> value >= threshold;
-            case "<" -> value < threshold;
-            case "<=" -> value <= threshold;
-            case "=" -> Math.abs(value - threshold) < 0.0001;
-            default -> false;
-        };
-    }
+
 
     private String extractParam(String paramsJson, String key, String defaultValue) {
         try {

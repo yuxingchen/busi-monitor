@@ -1,8 +1,10 @@
 package com.monitor.backend.alarm.sender;
 
-import java.util.Map;
-import java.util.Properties;
-
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.monitor.backend.constant.BatchDefaults;
+import com.monitor.backend.entity.AlarmChannel;
+import com.monitor.backend.entity.AlarmTemplate;
+import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -10,11 +12,8 @@ import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Component;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.monitor.backend.entity.AlarmChannel;
-import com.monitor.backend.entity.AlarmTemplate;
-
-import jakarta.mail.internet.MimeMessage;
+import java.util.Map;
+import java.util.Properties;
 
 /**
  * 邮件告警发送器
@@ -66,10 +65,10 @@ public class EmailAlarmSender implements AlarmSender {
             }
 
             // 发送邮件
-            MimeMessage message = ((JavaMailSenderImpl) mailSender).createMimeMessage();
+            MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(config.getUsername());
-            helper.setTo(config.getRecipients().split(","));
+            helper.setTo(config.getRecipients().split(BatchDefaults.DEFAULT_SEPARATOR));
             helper.setSubject(subject);
             helper.setText(htmlContent, true);
 

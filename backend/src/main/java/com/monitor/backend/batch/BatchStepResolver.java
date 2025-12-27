@@ -1,20 +1,18 @@
 package com.monitor.backend.batch;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
+import com.monitor.backend.cache.CacheStrategy;
+import com.monitor.backend.component.WorkflowSqlParser;
+import com.monitor.backend.constant.BatchDefaults;
+import com.monitor.backend.constant.PlaceholderPrefix;
+import com.monitor.backend.constant.WorkflowStepType;
+import com.monitor.backend.entity.WorkflowStep;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import com.monitor.backend.entity.WorkflowStep;
-import com.monitor.backend.component.WorkflowSqlParser;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 批处理步骤解析器
@@ -105,9 +103,9 @@ public class BatchStepResolver {
         info.setIdColumn(idColumn);
         
         // 使用步骤配置的分区参数
-        info.setPartitionCount(step.getPartitionCount() != null ? step.getPartitionCount() : 10);
-        info.setChunkSize(step.getChunkSize() != null ? step.getChunkSize() : 1000);
-        info.setCacheStrategy(step.getCacheStrategy() != null ? step.getCacheStrategy() : "FILE");
+        info.setPartitionCount(BatchDefaults.getPartitionCount(step.getPartitionCount()));
+        info.setChunkSize(BatchDefaults.getChunkSize(step.getChunkSize()));
+        info.setCacheStrategy(CacheStrategy.Type.fromCode(step.getCacheStrategy()).name());
 
         // ===== 执行模式判定 =====
         
@@ -214,7 +212,7 @@ public class BatchStepResolver {
         List<WorkflowStep> joinSteps = new ArrayList<>();
 
         for (WorkflowStep step : steps) {
-            if ("SQL".equals(step.getStepType())) {
+            if (WorkflowStepType.SQL.matches(step.getStepType())) {
                 String sql = step.getSqlScript();
 
                 // 判断是否为独立数据抽取步骤（不引用其他变量）
@@ -249,7 +247,7 @@ public class BatchStepResolver {
             return tableName.replace("`", "");
         }
         log.warn("无法从SQL中提取表名: {}", sql.substring(0, Math.min(100, sql.length())));
-        return "unknown_table";
+        return BatchDefaults.UNKNOWN_TABLE;
     }
 
     /**
@@ -447,27 +445,14 @@ public class BatchStepResolver {
         while (matcher.find()) {
             String varName = matcher.group(1);
             // 排除内置变量
-            if (!isBuiltinVariable(varName)) {
+            if (!PlaceholderPrefix.isBuiltinVar(varName)) {
                 refs.add(varName);
             }
         }
         return refs;
     }
 
-    /**
-     * 判断是否为内置变量（非步骤依赖）
-     */
-    private boolean isBuiltinVariable(String varName) {
-        return varName.equals("const") ||
-               varName.equals("loop") ||
-               varName.equals("env") ||
-               varName.equals("now") ||
-               varName.equals("today") ||
-               varName.equals("yesterday") ||
-               varName.equals("lastRunTime") ||
-               varName.equals("todayStart") ||
-               varName.equals("todayEnd");
-    }
+
 
     /**
      * 计算依赖层级

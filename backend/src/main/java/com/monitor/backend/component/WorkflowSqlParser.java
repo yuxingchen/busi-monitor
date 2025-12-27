@@ -1,9 +1,10 @@
 package com.monitor.backend.component;
 
+import com.monitor.backend.constant.BatchDefaults;
+import com.monitor.backend.constant.JoinType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -124,7 +125,7 @@ public class WorkflowSqlParser {
             JoinClause join = new JoinClause();
 
             String joinType = joinMatcher.group(1);
-            join.setJoinType(joinType != null ? joinType.toUpperCase() : "INNER");
+            join.setJoinType(JoinType.fromCode(joinType).getCode());
 
             String tableName = joinMatcher.group(2);
             String alias = joinMatcher.group(3);
@@ -180,7 +181,7 @@ public class WorkflowSqlParser {
             logger.debug("Found implicit join table: {} AS {}", tableName, alias);
 
             JoinClause join = new JoinClause();
-            join.setJoinType("INNER"); // 隐式JOIN相当于INNER JOIN
+            join.setJoinType(JoinType.INNER.getCode()); // 隐式JOIN相当于INNER JOIN
 
             TableRef tableRef = new TableRef();
             tableRef.setTableName(tableName);
@@ -276,7 +277,7 @@ public class WorkflowSqlParser {
         if (matcher.find()) {
             String groupByClause = matcher.group(1).trim();
             // GROUP BY 后面直接是字段列表，用逗号分隔
-            String[] parts = groupByClause.split(",");
+            String[] parts = groupByClause.split(BatchDefaults.DEFAULT_SEPARATOR);
             for (String part : parts) {
                 String field = extractSimpleFieldName(part.trim());
                 if (field != null && !SQL_KEYWORDS.contains(field.toUpperCase())) {
@@ -302,7 +303,7 @@ public class WorkflowSqlParser {
         if (matcher.find()) {
             String orderByClause = matcher.group(1).trim();
             // ORDER BY 后面是字段列表，可能带 ASC/DESC
-            String[] parts = orderByClause.split(",");
+            String[] parts = orderByClause.split(BatchDefaults.DEFAULT_SEPARATOR);
             for (String part : parts) {
                 // 移除 ASC/DESC 后缀
                 String cleaned = part.trim().replaceAll("(?i)\\s+(ASC|DESC)\\s*$", "").trim();
@@ -388,7 +389,7 @@ public class WorkflowSqlParser {
      */
     private Map<String, String> parseSelectFieldsWithAlias(String selectClause) {
         Map<String, String> fieldMap = new LinkedHashMap<>();
-        String[] parts = selectClause.split(",");
+        String[] parts = selectClause.split(BatchDefaults.DEFAULT_SEPARATOR);
         for (String part : parts) {
             String field = part.trim();
             String originalField;

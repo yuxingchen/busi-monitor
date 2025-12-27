@@ -1,11 +1,10 @@
 package com.monitor.backend.mapper;
 
-import java.util.List;
-
+import com.monitor.backend.entity.AlarmActive;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
-import com.monitor.backend.entity.AlarmActive;
+import java.util.List;
 
 /**
  * 活跃告警 Mapper

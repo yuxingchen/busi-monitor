@@ -1,11 +1,12 @@
 package com.monitor.backend.batch;
 
+import com.monitor.backend.constant.BatchDefaults;
+import org.springframework.stereotype.Component;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import org.springframework.stereotype.Component;
 
 /**
  * SQL批处理支持性分析器
@@ -109,7 +110,7 @@ public class SqlBatchAnalyzer {
             
             // 提取排序字段
             String orderByClause = orderByMatcher.group(1).trim();
-            String[] fields = orderByClause.split(",");
+            String[] fields = orderByClause.split(BatchDefaults.DEFAULT_SEPARATOR);
             for (String field : fields) {
                 result.addOrderByField(field.trim());
             }

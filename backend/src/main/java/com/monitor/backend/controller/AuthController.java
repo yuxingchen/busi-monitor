@@ -1,6 +1,7 @@
 package com.monitor.backend.controller;
 
 import com.monitor.backend.common.ApiResponse;
+import com.monitor.backend.constant.AuthConstants;
 import com.monitor.backend.dto.auth.LoginRequest;
 import com.monitor.backend.dto.auth.LoginResponse;
 import com.monitor.backend.entity.User;
@@ -82,11 +83,11 @@ public class AuthController {
             @Parameter(description = "Authorization Header") 
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
         
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        if (!AuthConstants.isBearerToken(authHeader)) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
         
-        String token = authHeader.substring(7);
+        String token = AuthConstants.extractToken(authHeader);
         String username = jwtTokenService.validateTokenAndGetUsername(token);
         
         if (username == null) {
@@ -109,11 +110,11 @@ public class AuthController {
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestBody Map<String, String> request) {
         
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        if (!AuthConstants.isBearerToken(authHeader)) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
         
-        String token = authHeader.substring(7);
+        String token = AuthConstants.extractToken(authHeader);
         String username = jwtTokenService.validateTokenAndGetUsername(token);
         
         if (username == null) {

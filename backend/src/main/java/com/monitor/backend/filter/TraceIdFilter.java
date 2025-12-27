@@ -1,5 +1,6 @@
 package com.monitor.backend.filter;
 
+import com.monitor.backend.constant.AuthConstants;
 import com.monitor.backend.util.TraceIdUtils;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -23,7 +24,6 @@ import java.io.IOException;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class TraceIdFilter extends OncePerRequestFilter {
 
-    public static final String TRACE_ID_HEADER = "X-Trace-Id";
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -32,11 +32,11 @@ public class TraceIdFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         try {
             // 从请求头获取或生成Trace ID
-            String traceId = request.getHeader(TRACE_ID_HEADER);
+            String traceId = request.getHeader(AuthConstants.TRACE_ID_HEADER);
             TraceIdUtils.initTrace(traceId);
             
             // 将Trace ID添加到响应头，便于前端调试
-            response.setHeader(TRACE_ID_HEADER, TraceIdUtils.getTraceId());
+            response.setHeader(AuthConstants.TRACE_ID_HEADER, TraceIdUtils.getTraceId());
             
             filterChain.doFilter(request, response);
         } finally {
