@@ -41,6 +41,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/login").permitAll()
                 // 放行WebSocket端点
                 .requestMatchers("/api/ws/**").permitAll()
+                // 放行Swagger/OpenAPI文档
+                .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/v3/api-docs.yaml").permitAll()
                 // 放行静态资源（如果有）
                 .requestMatchers("/", "/index.html", "/assets/**", "/*.js", "/*.css", "/*.ico").permitAll()
                 // 其他请求需要认证

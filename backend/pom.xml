@@ -21,6 +21,17 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
+        <!-- 参数验证 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <!-- API文档 -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.3.0</version>
+        </dependency>
         <dependency>
             <groupId>org.mybatis.spring.boot</groupId>
             <artifactId>mybatis-spring-boot-starter</artifactId>
@@ -68,20 +79,20 @@
             <artifactId>jsch</artifactId>
             <version>0.1.55</version>
         </dependency>
-        
+
         <!-- ==================== Spring Batch 批处理框架 ==================== -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-batch</artifactId>
         </dependency>
-        
+
         <!-- ==================== 可选：缓存中间件依赖 ==================== -->
         <!-- Redis 缓存（可选，用于中小数据量高频访问场景） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
-        
+
         <!-- Elasticsearch 缓存（可选，用于海量数据存储场景） -->
         <dependency>
             <groupId>co.elastic.clients</groupId>
@@ -91,44 +102,43 @@
             <groupId>jakarta.json</groupId>
             <artifactId>jakarta.json-api</artifactId>
         </dependency>
-        
-        <!-- Druid for dynamic datasources might be useful, but standard HikariCP is fine for now. 
+
+        <!-- Druid for dynamic datasources might be useful, but standard HikariCP is fine for now.
         We will manually manage DataSources. -->
-        
+
         <!-- ==================== 告警模块依赖 ==================== -->
         <!-- WebSocket 实时推送 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-websocket</artifactId>
         </dependency>
-        
+
         <!-- 邮件发送 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
-        
+
         <!-- Markdown 转 HTML（用于邮件告警模板渲染） -->
         <dependency>
             <groupId>com.vladsch.flexmark</groupId>
             <artifactId>flexmark-all</artifactId>
             <version>0.64.8</version>
         </dependency>
-        
+
         <!-- 阿里云 SMS (可选，用于短信发送) -->
         <dependency>
             <groupId>com.aliyun</groupId>
             <artifactId>alibabacloud-dysmsapi20170525</artifactId>
             <version>2.0.24</version>
         </dependency>
-        
+
         <!-- ==================== 安全认证模块 ==================== -->
         <!-- Spring Security -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
-        
         <!-- JWT (JSON Web Token) -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
@@ -148,7 +158,6 @@
             <scope>runtime</scope>
         </dependency>
     </dependencies>
-
     <build>
         <plugins>
             <plugin>

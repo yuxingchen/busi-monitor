@@ -1,22 +1,39 @@
 package com.monitor.backend.controller;
 
+import com.monitor.backend.common.ApiResponse;
+import com.monitor.backend.dto.auth.LoginRequest;
+import com.monitor.backend.dto.auth.LoginResponse;
 import com.monitor.backend.entity.User;
+import com.monitor.backend.exception.BusinessException;
+import com.monitor.backend.exception.ErrorCode;
 import com.monitor.backend.mapper.UserMapper;
 import com.monitor.backend.service.JwtTokenService;
 import com.monitor.backend.service.TransmitEncryptionService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
  * 认证控制器
- * 处理登录、注销等认证相关请求
+ * <p>
+ * 处理登录、注销等认证相关请求。
+ * </p>
+ *
+ * @author monitor-system
  */
+@Tag(name = "认证管理", description = "用户登录、获取个人信息、修改密码")
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
+    
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
     
     private final UserMapper userMapper;
     private final JwtTokenService jwtTokenService;
@@ -31,154 +48,103 @@ public class AuthController {
         this.transmitEncryptionService = transmitEncryptionService;
     }
     
-    /**
-     * 用户登录
-     */
+    @Operation(summary = "用户登录", description = "验证用户名密码，返回JWT Token")
     @PostMapping("/login")
-    public Map<String, Object> login(@RequestBody LoginRequest request) {
-        Map<String, Object> result = new HashMap<>();
-        
-        if (request.getUsername() == null || request.getPassword() == null) {
-            result.put("success", false);
-            result.put("message", "用户名和密码不能为空");
-            return result;
-        }
+    public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
+        log.info("用户登录: username={}", request.getUsername());
         
         // 解密前端传输的加密密码
         String password = transmitEncryptionService.decrypt(request.getPassword());
         
         User user = userMapper.findByUsername(request.getUsername());
         if (user == null) {
-            result.put("success", false);
-            result.put("message", "用户不存在");
-            return result;
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
         
         if (user.getEnabled() == null || user.getEnabled() != 1) {
-            result.put("success", false);
-            result.put("message", "用户已被禁用");
-            return result;
+            throw new BusinessException(ErrorCode.USER_DISABLED);
         }
         
         if (!passwordEncoder.matches(password, user.getPasswordHash())) {
-            result.put("success", false);
-            result.put("message", "密码错误");
-            return result;
+            throw new BusinessException(ErrorCode.PASSWORD_INCORRECT);
         }
         
         // 生成Token
         String token = jwtTokenService.generateToken(user.getUsername(), user.getRole());
         
-        result.put("success", true);
-        result.put("token", token);
-        result.put("username", user.getUsername());
-        result.put("role", user.getRole());
-        return result;
+        LoginResponse response = new LoginResponse(token, user.getUsername(), user.getRole());
+        return ApiResponse.ok(response);
     }
     
-    /**
-     * 获取当前用户信息
-     */
+    @Operation(summary = "获取当前用户信息", description = "根据Token获取当前登录用户信息")
     @GetMapping("/profile")
-    public Map<String, Object> getProfile(@RequestHeader(value = "Authorization", required = false) String authHeader) {
-        Map<String, Object> result = new HashMap<>();
+    public ApiResponse<LoginResponse> getProfile(
+            @Parameter(description = "Authorization Header") 
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
         
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            result.put("success", false);
-            result.put("message", "未登录");
-            return result;
+            throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
         
         String token = authHeader.substring(7);
         String username = jwtTokenService.validateTokenAndGetUsername(token);
         
         if (username == null) {
-            result.put("success", false);
-            result.put("message", "Token无效或已过期");
-            return result;
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Token无效或已过期");
         }
         
         User user = userMapper.findByUsername(username);
         if (user == null) {
-            result.put("success", false);
-            result.put("message", "用户不存在");
-            return result;
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
         
-        result.put("success", true);
-        result.put("username", user.getUsername());
-        result.put("role", user.getRole());
-        return result;
+        LoginResponse response = new LoginResponse(null, user.getUsername(), user.getRole());
+        return ApiResponse.ok(response);
     }
     
-    /**
-     * 修改密码
-     */
+    @Operation(summary = "修改密码", description = "修改当前用户的密码")
     @PostMapping("/change-password")
-    public Map<String, Object> changePassword(
+    public ApiResponse<Void> changePassword(
+            @Parameter(description = "Authorization Header")
             @RequestHeader(value = "Authorization", required = false) String authHeader,
-            @RequestBody ChangePasswordRequest request) {
-        Map<String, Object> result = new HashMap<>();
+            @RequestBody Map<String, String> request) {
         
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            result.put("success", false);
-            result.put("message", "未登录");
-            return result;
+            throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
         
         String token = authHeader.substring(7);
         String username = jwtTokenService.validateTokenAndGetUsername(token);
         
         if (username == null) {
-            result.put("success", false);
-            result.put("message", "Token无效或已过期");
-            return result;
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Token无效或已过期");
         }
         
         User user = userMapper.findByUsername(username);
         if (user == null) {
-            result.put("success", false);
-            result.put("message", "用户不存在");
-            return result;
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+        
+        String oldPassword = request.get("oldPassword");
+        String newPassword = request.get("newPassword");
+        
+        if (oldPassword == null || newPassword == null) {
+            throw new BusinessException(ErrorCode.PARAM_INVALID, "原密码和新密码不能为空");
         }
         
         // 解密前端传输的加密密码
-        String oldPassword = transmitEncryptionService.decrypt(request.getOldPassword());
-        String newPassword = transmitEncryptionService.decrypt(request.getNewPassword());
+        oldPassword = transmitEncryptionService.decrypt(oldPassword);
+        newPassword = transmitEncryptionService.decrypt(newPassword);
         
         if (!passwordEncoder.matches(oldPassword, user.getPasswordHash())) {
-            result.put("success", false);
-            result.put("message", "原密码错误");
-            return result;
+            throw new BusinessException(ErrorCode.PASSWORD_INCORRECT, "原密码错误");
         }
         
         String newPasswordHash = passwordEncoder.encode(newPassword);
         userMapper.updatePassword(user.getId(), newPasswordHash);
         
-        result.put("success", true);
-        result.put("message", "密码修改成功");
-        return result;
-    }
-    
-    // --- 内部请求类 ---
-    
-    public static class LoginRequest {
-        private String username;
-        private String password;
+        log.info("用户修改密码: username={}", username);
         
-        public String getUsername() { return username; }
-        public void setUsername(String username) { this.username = username; }
-        public String getPassword() { return password; }
-        public void setPassword(String password) { this.password = password; }
-    }
-    
-    public static class ChangePasswordRequest {
-        private String oldPassword;
-        private String newPassword;
-        
-        public String getOldPassword() { return oldPassword; }
-        public void setOldPassword(String oldPassword) { this.oldPassword = oldPassword; }
-        public String getNewPassword() { return newPassword; }
-        public void setNewPassword(String newPassword) { this.newPassword = newPassword; }
+        return ApiResponse.ok("密码修改成功", null);
     }
 }

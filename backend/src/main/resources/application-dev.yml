@@ -1,0 +1,35 @@
+# 开发环境配置
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+  # 数据库配置
+  datasource:
+    url: jdbc:mysql://localhost:3306/busi_monitor?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:sql/schema.sql
+
+  # 开发环境允许Swagger访问
+  mvc:
+    pathmatch:
+      matching-strategy: ant_path_matcher
+
+# 日志级别
+logging:
+  level:
+    com.monitor.backend: DEBUG
+    org.springframework.web: DEBUG
+
+# API文档
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true

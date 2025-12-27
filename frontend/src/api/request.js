@@ -20,27 +20,75 @@ request.interceptors.request.use(
     }
 )
 
-// 响应拦截器 - 处理401未授权
+// 响应拦截器 - 处理统一响应格式
 request.interceptors.response.use(
-    response => response.data,
+    response => {
+        const data = response.data
+        
+        // 新版统一响应格式: { success, code, message, data }
+        if (typeof data === 'object' && 'success' in data) {
+            if (data.success) {
+                // 成功时返回data字段（如果有），否则返回整个响应
+                return data.data !== undefined ? data.data : data
+            } else {
+                // 业务失败
+                ElMessage.error(data.message || '操作失败')
+                return Promise.reject(new Error(data.message || '操作失败'))
+            }
+        }
+        
+        // 兼容旧版响应格式（直接返回数据）
+        return data
+    },
     error => {
-        if (error.response && error.response.status === 401) {
-            // Token无效或过期，清除登录状态并跳转到登录页
-            localStorage.removeItem('token')
-            localStorage.removeItem('username')
-            localStorage.removeItem('role')
+        if (error.response) {
+            const status = error.response.status
+            const data = error.response.data
             
-            // 如果不是登录页，跳转到登录页
-            if (window.location.pathname !== '/login') {
-                ElMessage.warning('登录已过期，请重新登录')
-                window.location.href = '/login'
+            if (status === 401) {
+                // Token无效或过期，清除登录状态并跳转到登录页
+                localStorage.removeItem('token')
+                localStorage.removeItem('username')
+                localStorage.removeItem('role')
+                
+                // 如果不是登录页，跳转到登录页
+                if (window.location.pathname !== '/login') {
+                    ElMessage.warning('登录已过期，请重新登录')
+                    window.location.href = '/login'
+                }
+            } else if (status === 400) {
+                // 参数验证失败
+                ElMessage.error(data.message || '参数错误')
+            } else if (status === 403) {
+                ElMessage.error('权限不足')
+            } else if (status === 404) {
+                ElMessage.error(data.message || '资源不存在')
+            } else if (status >= 500) {
+                ElMessage.error(data.message || '服务器错误，请稍后重试')
+            } else {
+                ElMessage.error(data.message || error.message || '请求失败')
             }
         } else {
-            ElMessage.error(error.message || '请求失败')
+            ElMessage.error('网络错误，请检查网络连接')
         }
         return Promise.reject(error)
     }
 )
+
+/**
+ * 封装的API响应处理工具
+ * 用于需要更细粒度控制的场景
+ */
+export const handleApiResponse = (response) => {
+    if (response && typeof response === 'object' && 'success' in response) {
+        if (response.success) {
+            return { success: true, data: response.data, message: response.message }
+        } else {
+            return { success: false, data: null, message: response.message }
+        }
+    }
+    return { success: true, data: response, message: null }
+}
 
 export default request
 

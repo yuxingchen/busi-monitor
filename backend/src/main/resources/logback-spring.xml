@@ -1,27 +1,69 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <!-- 定义日志输出格式中的时间格式 -->
+    <!-- 引入Spring Boot默认配置 -->
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!-- 定义日志文件存放路径 -->
+    <property name="LOG_PATH" value="${LOG_PATH:-logs}"/>
+    <property name="APP_NAME" value="busi-monitor"/>
     <property name="LOG_DATEFORMAT_PATTERN" value="yyyy-MM-dd HH:mm:ss.SSS"/>
-    
-    <!-- 定义控制台日志输出格式 -->
-    <property name="CONSOLE_LOG_PATTERN" 
-              value="%d{${LOG_DATEFORMAT_PATTERN}} %highlight(%-5level) [%thread] %cyan(%logger{36}) - %msg%n"/>
-    
-    <!-- 控制台输出 -->
+
+    <!-- 控制台输出（带颜色和TraceId） -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>${CONSOLE_LOG_PATTERN}</pattern>
+            <pattern>%d{${LOG_DATEFORMAT_PATTERN}} %highlight(%-5level) [%X{traceId:-N/A}] [%thread] %cyan(%logger{36}) - %msg%n</pattern>
             <charset>UTF-8</charset>
         </encoder>
     </appender>
-    
-    <!-- 根日志级别 -->
-    <root level="INFO">
-        <appender-ref ref="CONSOLE"/>
-    </root>
-    
-    <!-- 可选：为特定包设置日志级别 -->
-    <logger name="com.monitor.backend" level="DEBUG"/>
-    <logger name="org.springframework" level="INFO"/>
-    <logger name="org.mybatis" level="INFO"/>
+
+    <!-- 普通文件输出（人类可读格式） -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_PATH}/${APP_NAME}.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_PATH}/${APP_NAME}.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>100MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>3GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{${LOG_DATEFORMAT_PATTERN}} %-5level [%X{traceId:-N/A}] [%thread] %logger{36} - %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- 异步写入（提升性能） -->
+    <appender name="ASYNC_FILE" class="ch.qos.logback.classic.AsyncAppender">
+        <discardingThreshold>0</discardingThreshold>
+        <queueSize>1024</queueSize>
+        <appender-ref ref="FILE"/>
+    </appender>
+
+    <!-- 开发环境配置 -->
+    <springProfile name="dev">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+        <logger name="com.monitor.backend" level="DEBUG"/>
+        <logger name="org.springframework.web" level="DEBUG"/>
+    </springProfile>
+
+    <!-- 生产环境配置 -->
+    <springProfile name="prod">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="ASYNC_FILE"/>
+        </root>
+        <logger name="com.monitor.backend" level="INFO"/>
+        <logger name="org.springframework" level="WARN"/>
+    </springProfile>
+
+    <!-- 默认配置（无profile时使用） -->
+    <springProfile name="default">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+        <logger name="com.monitor.backend" level="DEBUG"/>
+        <logger name="org.springframework" level="INFO"/>
+        <logger name="org.mybatis" level="INFO"/>
+    </springProfile>
 </configuration>

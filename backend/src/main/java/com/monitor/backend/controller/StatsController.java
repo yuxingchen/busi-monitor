@@ -1,16 +1,25 @@
 package com.monitor.backend.controller;
 
+import com.monitor.backend.common.ApiResponse;
 import com.monitor.backend.entity.MonitorRecord;
 import com.monitor.backend.mapper.MonitorRecordMapper;
 import com.monitor.backend.service.DynamicTableService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 统计数据控制器
+ *
+ * @author monitor-system
+ */
+@Tag(name = "统计数据", description = "监控记录和统计数据查询")
 @RestController
 @RequestMapping("/api/stats")
-@CrossOrigin
 public class StatsController {
 
     private final MonitorRecordMapper recordMapper;
@@ -21,15 +30,18 @@ public class StatsController {
         this.dynamicTableService = dynamicTableService;
     }
 
+    @Operation(summary = "获取任务最近的记录")
     @GetMapping("/{taskId}")
-    public List<MonitorRecord> getRecentStats(@PathVariable Long taskId, @RequestParam(defaultValue = "10") int limit) {
+    public ApiResponse<List<MonitorRecord>> getRecentStats(
+            @Parameter(description = "任务ID") @PathVariable Long taskId,
+            @Parameter(description = "条数限制") @RequestParam(defaultValue = "10") int limit) {
+        
         List<MonitorRecord> records = recordMapper.findRecentByTaskId(taskId, limit);
 
         // 处理大数据集：从物理表获取数据
         if (!records.isEmpty()) {
             MonitorRecord latest = records.get(0);
             if (latest.getResultJson() != null && latest.getResultJson().contains("stored in physical table")) {
-                // 使用 record.id 作为 batch_id 查询动态表
                 String batchId = String.valueOf(latest.getId());
                 List<Map<String, Object>> dynamicData = dynamicTableService.queryByBatchId(taskId, batchId);
 
@@ -44,45 +56,31 @@ public class StatsController {
             }
         }
 
-        return records;
+        return ApiResponse.ok(records);
     }
 
-    /**
-     * 获取任务动态表的可选字段列表
-     */
+    @Operation(summary = "获取任务动态表的可选字段列表")
     @GetMapping("/task/{taskId}/columns")
-    public List<String> getTaskColumns(@PathVariable Long taskId) {
-        return dynamicTableService.getTableColumns(taskId);
+    public ApiResponse<List<String>> getTaskColumns(
+            @Parameter(description = "任务ID") @PathVariable Long taskId) {
+        return ApiResponse.ok(dynamicTableService.getTableColumns(taskId));
     }
 
-    /**
-     * 获取分组聚合数据
-     * 
-     * @param taskId     任务ID
-     * @param groupBy    分组字段
-     * @param valueField 数值字段
-     * @param aggMethod  聚合方式 (SUM/COUNT/AVG)
-     */
+    @Operation(summary = "获取分组聚合数据")
     @GetMapping("/task/{taskId}/grouped-data")
-    public List<Map<String, Object>> getGroupedData(
-            @PathVariable Long taskId,
-            @RequestParam String groupBy,
-            @RequestParam String valueField,
-            @RequestParam(defaultValue = "SUM") String aggMethod) {
-        return dynamicTableService.queryGroupedByTime(taskId, groupBy, valueField, aggMethod);
+    public ApiResponse<List<Map<String, Object>>> getGroupedData(
+            @Parameter(description = "任务ID") @PathVariable Long taskId,
+            @Parameter(description = "分组字段") @RequestParam String groupBy,
+            @Parameter(description = "数值字段") @RequestParam String valueField,
+            @Parameter(description = "聚合方式") @RequestParam(defaultValue = "SUM") String aggMethod) {
+        return ApiResponse.ok(dynamicTableService.queryGroupedByTime(taskId, groupBy, valueField, aggMethod));
     }
 
-    /**
-     * 获取透视表数据
-     * 根据任务配置的sourceType自动判断数据来源（SQL任务或工作流）
-     * 
-     * @param taskId 任务ID
-     * @param limit 查询限制（可选，null时使用任务配置的queryLimit，配置也没有则不限制）
-     */
+    @Operation(summary = "获取透视表数据", description = "根据任务配置自动判断数据来源")
     @GetMapping("/task/{taskId}/pivot-data")
-    public List<Map<String, Object>> getPivotData(
-            @PathVariable Long taskId,
-            @RequestParam(required = false) Integer limit) {
-        return dynamicTableService.queryPivotData(taskId, limit);
+    public ApiResponse<List<Map<String, Object>>> getPivotData(
+            @Parameter(description = "任务ID") @PathVariable Long taskId,
+            @Parameter(description = "查询限制") @RequestParam(required = false) Integer limit) {
+        return ApiResponse.ok(dynamicTableService.queryPivotData(taskId, limit));
     }
 }

@@ -2,69 +2,70 @@ package com.monitor.backend.entity;
 
 import java.time.LocalDateTime;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 /**
  * 批处理性能日志实体
- * <p>
- * 记录批处理执行的性能信息，包括读取/写入数量、执行时长、处理速率等。
- * </p>
  */
 @Data
+@Schema(description = "批处理性能日志")
 public class BatchPerformanceLog {
 
+    @Schema(description = "主键ID")
     private Long id;
 
-    /** Job名称 */
+    @Schema(description = "Job名称")
     private String jobName;
 
-    /** Job执行ID */
+    @Schema(description = "Job执行ID")
     private Long executionId;
 
-    /** 步骤名称 */
+    @Schema(description = "步骤名称")
     private String stepName;
 
-    /** 分区ID */
+    @Schema(description = "分区ID")
     private String partitionId;
 
-    /** 状态: STARTED/COMPLETED/FAILED/STOPPED */
+    @Schema(description = "状态: STARTED/COMPLETED/FAILED/STOPPED")
     private String status;
 
-    /** 开始时间 */
+    @Schema(description = "开始时间")
     private LocalDateTime startTime;
 
-    /** 结束时间 */
+    @Schema(description = "结束时间")
     private LocalDateTime endTime;
 
-    /** 执行时长(毫秒) */
+    @Schema(description = "执行时长(毫秒)")
     private Long durationMs;
 
-    /** 读取记录数 */
+    @Schema(description = "读取记录数")
     private Long readCount;
 
-    /** 写入记录数 */
+    @Schema(description = "写入记录数")
     private Long writeCount;
 
-    /** 跳过记录数 */
+    @Schema(description = "跳过记录数")
     private Long skipCount;
 
-    /** 处理速率(条/秒) */
+    @Schema(description = "处理速率(条/秒)")
     private Double recordsPerSecond;
 
-    /** 缓存策略 */
+    @Schema(description = "缓存策略")
     private String cacheStrategy;
 
-    /** 缓存键 */
+    @Schema(description = "缓存键")
     private String cacheKey;
 
-    /** 涉及的数据源ID列表 */
+    @Schema(description = "涉及的数据源ID列表")
     private String dataSourceIds;
 
-    /** 错误信息 */
+    @Schema(description = "错误信息")
     private String errorMessage;
 
-    /** 额外信息JSON */
+    @Schema(description = "额外信息JSON")
     private String extraInfo;
 
+    @Schema(description = "创建时间")
     private LocalDateTime createTime;
 }

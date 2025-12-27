@@ -1,32 +1,35 @@
 package com.monitor.backend.entity;
 
 import java.time.LocalDateTime;
+
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 /**
  * 系统用户实体类
  */
 @Data
+@Schema(description = "系统用户")
 public class User {
     
-    /** 主键ID */
+    @Schema(description = "主键ID")
     private Long id;
     
-    /** 用户名 */
+    @Schema(description = "用户名")
     private String username;
     
-    /** 密码哈希值(BCrypt) */
+    @Schema(description = "密码哈希值", hidden = true)
     private String passwordHash;
     
-    /** 角色 (ADMIN/USER) */
+    @Schema(description = "角色（ADMIN/USER）")
     private String role;
     
-    /** 是否启用 */
+    @Schema(description = "是否启用")
     private Integer enabled;
     
-    /** 创建时间 */
+    @Schema(description = "创建时间")
     private LocalDateTime createTime;
     
-    /** 更新时间 */
+    @Schema(description = "更新时间")
     private LocalDateTime updateTime;
 }

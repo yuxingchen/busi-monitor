@@ -1,7 +1,8 @@
 package com.monitor.backend.service;
 
+import com.monitor.backend.component.WorkflowSqlParser;
 import com.monitor.backend.entity.WorkflowStep;
-import com.monitor.backend.service.WorkflowSqlParser.ParseResult;
+import com.monitor.backend.component.WorkflowSqlParser.ParseResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;

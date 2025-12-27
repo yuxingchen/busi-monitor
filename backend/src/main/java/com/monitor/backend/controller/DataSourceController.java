@@ -1,18 +1,38 @@
 package com.monitor.backend.controller;
 
+import com.monitor.backend.common.ApiResponse;
 import com.monitor.backend.entity.MonitorDataSource;
+import com.monitor.backend.exception.BusinessException;
+import com.monitor.backend.exception.ErrorCode;
 import com.monitor.backend.mapper.MonitorDataSourceMapper;
 import com.monitor.backend.service.DataSourceManager;
 import com.monitor.backend.service.EncryptionService;
 import com.monitor.backend.service.TransmitEncryptionService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.Statement;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+/**
+ * 数据源管理控制器
+ *
+ * @author monitor-system
+ */
+@Tag(name = "数据源管理", description = "数据源配置的增删改查和连接测试")
 @RestController
 @RequestMapping("/api/datasource")
-@CrossOrigin // For dev
 public class DataSourceController {
+
+    private static final Logger log = LoggerFactory.getLogger(DataSourceController.class);
 
     private final MonitorDataSourceMapper dataSourceMapper;
     private final DataSourceManager dataSourceManager;
@@ -29,30 +49,36 @@ public class DataSourceController {
         this.transmitEncryptionService = transmitEncryptionService;
     }
 
+    @Operation(summary = "获取所有数据源", description = "查询所有数据源配置（密码不返回）")
     @GetMapping
-    public List<MonitorDataSource> list() {
+    public ApiResponse<List<MonitorDataSource>> list() {
         List<MonitorDataSource> list = dataSourceMapper.findAll();
         // 不返回加密密码
         list.forEach(ds -> ds.setPasswordEncrypted(null));
-        return list;
+        return ApiResponse.ok(list);
     }
 
+    @Operation(summary = "添加数据源")
     @PostMapping
-    public String add(@RequestBody MonitorDataSource dataSource) {
+    public ApiResponse<Void> add(@RequestBody MonitorDataSource dataSource) {
+        log.info("添加数据源: name={}", dataSource.getName());
+        
         // 解密前端传输的加密密码后再加密存储
         if (dataSource.getPassword() != null && !dataSource.getPassword().isEmpty()) {
             String plainPassword = transmitEncryptionService.decrypt(dataSource.getPassword());
             dataSource.setPasswordEncrypted(encryptionService.encrypt(plainPassword));
         }
         dataSourceMapper.insert(dataSource);
-        return "success";
+        return ApiResponse.ok("添加成功", null);
     }
 
+    @Operation(summary = "更新数据源")
     @PutMapping
-    public String update(@RequestBody MonitorDataSource dataSource) {
+    public ApiResponse<Void> update(@RequestBody MonitorDataSource dataSource) {
+        log.info("更新数据源: id={}", dataSource.getId());
+        
         // 如果密码变更则重新加密
         if (dataSource.getPassword() != null && !dataSource.getPassword().isEmpty()) {
-            // 解密前端传输的加密密码后再加密存储
             String plainPassword = transmitEncryptionService.decrypt(dataSource.getPassword());
             dataSource.setPasswordEncrypted(encryptionService.encrypt(plainPassword));
         } else {
@@ -63,49 +89,44 @@ public class DataSourceController {
             }
         }
         dataSourceMapper.update(dataSource);
-        dataSourceManager.removeDataSource(dataSource.getId()); // Invalidate cache
-        return "success";
+        dataSourceManager.removeDataSource(dataSource.getId()); // 清除缓存
+        return ApiResponse.ok("更新成功", null);
     }
 
+    @Operation(summary = "删除数据源")
     @DeleteMapping("/{id}")
-    public String delete(@PathVariable Long id) {
+    public ApiResponse<Void> delete(
+            @Parameter(description = "数据源ID") @PathVariable Long id) {
+        log.info("删除数据源: id={}", id);
         dataSourceMapper.deleteById(id);
         dataSourceManager.removeDataSource(id);
-        return "success";
+        return ApiResponse.ok();
     }
 
-    /**
-     * 测试数据源连接
-     */
+    @Operation(summary = "测试数据源连接", description = "测试数据源能否正常连接")
     @PostMapping("/{id}/test")
-    public java.util.Map<String, Object> testConnection(@PathVariable Long id) {
-        java.util.Map<String, Object> result = new java.util.HashMap<>();
-        try {
-            // 获取数据源配置
-            MonitorDataSource config = dataSourceMapper.findById(id);
-            if (config == null) {
-                result.put("success", false);
-                result.put("message", "数据源不存在");
-                return result;
-            }
+    public ApiResponse<Map<String, Object>> testConnection(
+            @Parameter(description = "数据源ID") @PathVariable Long id) {
+        
+        MonitorDataSource config = dataSourceMapper.findById(id);
+        if (config == null) {
+            throw new BusinessException(ErrorCode.DATASOURCE_NOT_FOUND);
+        }
 
-            // 尝试建立连接
-            javax.sql.DataSource ds = dataSourceManager.getDataSource(id);
-            try (java.sql.Connection conn = ds.getConnection()) {
-                // 简单查询测试
-                try (java.sql.Statement stmt = conn.createStatement()) {
+        Map<String, Object> data = new HashMap<>();
+        try {
+            DataSource ds = dataSourceManager.getDataSource(id);
+            try (Connection conn = ds.getConnection()) {
+                try (Statement stmt = conn.createStatement()) {
                     stmt.execute("SELECT 1");
                 }
-                result.put("success", true);
-                result.put("message", "连接成功");
-                result.put("dbProductName", conn.getMetaData().getDatabaseProductName());
-                result.put("dbVersion", conn.getMetaData().getDatabaseProductVersion());
+                data.put("dbProductName", conn.getMetaData().getDatabaseProductName());
+                data.put("dbVersion", conn.getMetaData().getDatabaseProductVersion());
             }
+            return ApiResponse.ok("连接成功", data);
         } catch (Exception e) {
-            result.put("success", false);
-            result.put("message", "连接失败: " + e.getMessage());
+            log.warn("数据源连接测试失败: id={}, error={}", id, e.getMessage());
+            return ApiResponse.fail(ErrorCode.DATASOURCE_CONNECTION_FAILED, "连接失败: " + e.getMessage());
         }
-        return result;
     }
 }
-

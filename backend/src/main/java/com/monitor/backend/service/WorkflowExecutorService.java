@@ -9,6 +9,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.monitor.backend.component.MemoryJoinExecutor;
+import com.monitor.backend.component.WorkflowSqlParser;
+import com.monitor.backend.constant.BatchDefaults;
+import com.monitor.backend.constant.ConfigKeys;
+import com.monitor.backend.constant.ExecutionStatus;
+import com.monitor.backend.constant.JoinType;
+import com.monitor.backend.constant.LoopContextKeys;
+import com.monitor.backend.constant.LoopSourceType;
+import com.monitor.backend.constant.SystemFields;
+import com.monitor.backend.constant.WorkflowStepType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.Job;
@@ -19,7 +29,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.monitor.backend.entity.Workflow;
@@ -28,10 +37,10 @@ import com.monitor.backend.entity.WorkflowStep;
 import com.monitor.backend.mapper.WorkflowExecutionMapper;
 import com.monitor.backend.mapper.WorkflowMapper;
 import com.monitor.backend.mapper.WorkflowStepMapper;
-import com.monitor.backend.service.WorkflowSqlParser.JoinClause;
-import com.monitor.backend.service.WorkflowSqlParser.JoinCondition;
-import com.monitor.backend.service.WorkflowSqlParser.ParseResult;
-import com.monitor.backend.service.WorkflowSqlParser.TableRef;
+import com.monitor.backend.component.WorkflowSqlParser.JoinClause;
+import com.monitor.backend.component.WorkflowSqlParser.JoinCondition;
+import com.monitor.backend.component.WorkflowSqlParser.ParseResult;
+import com.monitor.backend.component.WorkflowSqlParser.TableRef;
 
 /**
  * 工作流执行服务
@@ -172,7 +181,7 @@ public class WorkflowExecutorService {
         // 创建执行记录
         WorkflowExecution execution = new WorkflowExecution();
         execution.setWorkflowId(workflow.getId());
-        execution.setStatus("BATCH_STARTING");
+        execution.setStatus(ExecutionStatus.BATCH_STARTING.getCode());
         execution.setStartTime(LocalDateTime.now());
         executionMapper.insert(execution);
 
@@ -222,25 +231,18 @@ public class WorkflowExecutorService {
                             stepInfo.getContextVariables(), stepInfo.getRealTables());
                     
                     // 根据执行模式选择策略
-                    switch (stepInfo.getExecutionMode()) {
-                        case PURE_BATCH:
+                    lastResult = switch (stepInfo.getExecutionMode()) {
+                        case PURE_BATCH ->
                             // 纯批处理：无依赖，启动Spring Batch Job
-                            lastResult = executePureBatch(stepInfo, execution, workflow);
-                            break;
-                            
-                        case CONTEXT_BATCH:
+                                executePureBatch(stepInfo, execution, workflow);
+                        case CONTEXT_BATCH ->
                             // 混合模式：变量从context获取 + 真实表批量查询 + 内存JOIN
-                            lastResult = executeContextBatch(stepInfo, step, context);
-                            break;
-                            
-                        case CONTEXT_ONLY:
+                                executeContextBatch(stepInfo, step, context);
+                        case CONTEXT_ONLY ->
                             // 纯内存模式：降级到常规执行
-                            lastResult = executeStep(step, context);
-                            break;
-                            
-                        default:
-                            lastResult = executeStep(step, context);
-                    }
+                                executeStep(step, context);
+                        default -> executeStep(step, context);
+                    };
                     
                     // 存入context供后续步骤使用
                     if (step.getResultVariable() != null && lastResult != null) {
@@ -259,7 +261,7 @@ public class WorkflowExecutorService {
             }
             
             // 更新执行状态
-            execution.setStatus("SUCCESS");
+            execution.setStatus(ExecutionStatus.SUCCESS.getCode());
             execution.setEndTime(LocalDateTime.now());
             Map<String, Object> resultInfo = new HashMap<>();
             resultInfo.put("layerCount", layers.size());
@@ -273,7 +275,7 @@ public class WorkflowExecutorService {
 
         } catch (Exception e) {
             logger.error("批处理执行失败: " + workflow.getId(), e);
-            execution.setStatus("FAILED");
+            execution.setStatus(ExecutionStatus.FAILED.getCode());
             execution.setEndTime(LocalDateTime.now());
             execution.setErrorMessage("批处理失败: " + e.getMessage());
             executionMapper.update(execution);
@@ -563,7 +565,7 @@ public class WorkflowExecutorService {
         // 3. 创建执行记录
         WorkflowExecution execution = new WorkflowExecution();
         execution.setWorkflowId(workflowId);
-        execution.setStatus("RUNNING");
+        execution.setStatus(ExecutionStatus.RUNNING.getCode());
         execution.setStartTime(LocalDateTime.now());
         executionMapper.insert(execution);
 
@@ -587,7 +589,7 @@ public class WorkflowExecutorService {
                 // 记录步骤结果摘要
                 Map<String, Object> stepSummary = new HashMap<>();
                 stepSummary.put("rowCount", result != null ? result.size() : 0);
-                stepSummary.put("status", "SUCCESS");
+                stepSummary.put("status", ExecutionStatus.SUCCESS.getCode());
                 stepResults.put(step.getName(), stepSummary);
 
                 lastResult = result;
@@ -604,7 +606,7 @@ public class WorkflowExecutorService {
             }
 
             // 7. 更新执行状态为成功
-            execution.setStatus("SUCCESS");
+            execution.setStatus(ExecutionStatus.SUCCESS.getCode());
             execution.setEndTime(LocalDateTime.now());
             execution.setStepResults(objectMapper.writeValueAsString(stepResults));
             executionMapper.update(execution);
@@ -614,7 +616,7 @@ public class WorkflowExecutorService {
         } catch (Exception e) {
             logger.error("Workflow execution failed: " + workflowId, e);
 
-            execution.setStatus("FAILED");
+            execution.setStatus(ExecutionStatus.FAILED.getCode());
             execution.setEndTime(LocalDateTime.now());
             execution.setErrorMessage(e.getMessage());
             try {
@@ -644,17 +646,17 @@ public class WorkflowExecutorService {
         String stepType = step.getStepType();
 
         // 处理 CONSTANT 步骤：解析常量配置并放入上下文
-        if ("CONSTANT".equals(stepType)) {
+        if (WorkflowStepType.CONSTANT.matches(stepType)) {
             return executeConstantStep(step, context);
         }
 
         // 处理 LOOP 步骤：循环执行子SQL
-        if ("LOOP".equals(stepType)) {
+        if (WorkflowStepType.LOOP.matches(stepType)) {
             return executeLoopStep(step, context);
         }
 
-        if (!"SQL".equals(stepType)) {
-            if ("TASK_REF".equals(stepType)) {
+        if (!WorkflowStepType.SQL.matches(stepType)) {
+            if (WorkflowStepType.TASK_REF.matches(stepType)) {
                 throw new UnsupportedOperationException("TASK_REF step type not implemented yet");
             }
             throw new RuntimeException("Unknown step type: " + stepType);

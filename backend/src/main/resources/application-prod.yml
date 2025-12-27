@@ -1,0 +1,41 @@
+# 生产环境配置
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  # 数据库配置 - 使用环境变量
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/busi_monitor?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 30000
+      connection-timeout: 30000
+      max-lifetime: 1800000
+
+# 日志级别
+logging:
+  level:
+    com.monitor.backend: INFO
+    org.springframework.web: WARN
+
+# API文档 - 生产环境禁用
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+# JWT配置 - 使用环境变量
+jwt:
+  secret: ${JWT_SECRET:your-production-secret-key-at-least-256-bits-long}
+  expiration: ${JWT_EXPIRATION:86400000}
+
+# 加密配置 - 使用环境变量
+encryption:
+  key: ${ENCRYPTION_KEY:your-production-aes-256-key}
+  transmit-key: ${TRANSMIT_ENCRYPTION_KEY:your-production-transmit-key}

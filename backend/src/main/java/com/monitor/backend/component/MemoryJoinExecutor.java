@@ -1,7 +1,8 @@
-package com.monitor.backend.service;
+package com.monitor.backend.component;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -12,7 +13,7 @@ import java.util.stream.Collectors;
  * 内存JOIN执行器
  * 在Java内存中对两个数据集执行JOIN操作，支持多线程并行处理
  */
-@Service
+@Component
 public class MemoryJoinExecutor {
 
     private static final Logger logger = LoggerFactory.getLogger(MemoryJoinExecutor.class);

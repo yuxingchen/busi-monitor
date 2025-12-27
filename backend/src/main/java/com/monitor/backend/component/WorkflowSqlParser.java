@@ -1,7 +1,8 @@
-package com.monitor.backend.service;
+package com.monitor.backend.component;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -33,7 +34,7 @@ import java.util.regex.Pattern;
  * @author Monitor System
  * @since 1.0
  */
-@Service
+@Component
 public class WorkflowSqlParser {
 
     private static final Logger logger = LoggerFactory.getLogger(WorkflowSqlParser.class);

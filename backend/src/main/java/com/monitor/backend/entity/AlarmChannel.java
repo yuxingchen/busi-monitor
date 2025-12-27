@@ -1,40 +1,35 @@
 package com.monitor.backend.entity;
 
-
-import lombok.Data;
-
 import java.time.LocalDateTime;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Data;
 
 /**
  * 告警渠道实体类
- * <p>
- * 定义告警通知的渠道配置，支持多种通知方式如企业微信、邮件、短信等。
- * </p>
- *
- * @author monitor-system
  */
 @Data
+@Schema(description = "告警渠道")
 public class AlarmChannel {
     
-    /** 主键ID */
+    @Schema(description = "主键ID")
     private Long id;
     
-    /** 渠道名称 */
+    @Schema(description = "渠道名称")
     private String name;
     
-    /** 渠道类型（WECHAT_WORK/EMAIL/SMS/WEBHOOK） */
+    @Schema(description = "渠道类型（WECHAT_WORK/EMAIL/SMS/WEBHOOK）")
     private String type;
     
-    /** 渠道配置（JSON格式，包含具体的通知配置） */
+    @Schema(description = "渠道配置（JSON格式）")
     private String config;
     
-    /** 是否启用（1=启用，0=禁用） */
+    @Schema(description = "是否启用（1=启用，0=禁用）")
     private Integer isActive;
 
-    /** 创建时间 */
+    @Schema(description = "创建时间")
     private LocalDateTime createTime;
 
-    /** 更新时间 */
+    @Schema(description = "更新时间")
     private LocalDateTime updateTime;
-
 }

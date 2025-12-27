@@ -93,23 +93,22 @@ const handleLogin = async () => {
         loading.value = true
         try {
             // 加密密码后发送
+            // request.js拦截器会处理ApiResponse格式，成功时返回data内容
             const res = await request.post('/auth/login', {
                 username: form.username,
                 password: encryptPassword(form.password)
             })
-            if (res.success) {
-                // 保存token和用户信息
-                localStorage.setItem('token', res.token)
-                localStorage.setItem('username', res.username)
-                localStorage.setItem('role', res.role)
 
-                ElMessage.success('登录成功')
-                router.push('/dashboard')
-            } else {
-                ElMessage.error(res.message || '登录失败')
-            }
+            // res 已经是 data 内容: { token, username, role }
+            localStorage.setItem('token', res.token)
+            localStorage.setItem('username', res.username)
+            localStorage.setItem('role', res.role)
+
+            ElMessage.success('登录成功')
+            router.push('/dashboard')
         } catch (e) {
-            ElMessage.error('登录失败，请检查网络连接')
+            // 错误已在request拦截器中处理，这里可以添加额外处理
+            console.error('登录失败:', e)
         } finally {
             loading.value = false
         }

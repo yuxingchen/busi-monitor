@@ -14,7 +14,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import com.monitor.backend.entity.WorkflowStep;
-import com.monitor.backend.service.WorkflowSqlParser;
+import com.monitor.backend.component.WorkflowSqlParser;
 
 /**
  * 批处理步骤解析器

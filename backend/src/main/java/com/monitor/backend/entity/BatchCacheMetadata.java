@@ -2,49 +2,52 @@ package com.monitor.backend.entity;
 
 import java.time.LocalDateTime;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 /**
  * 批处理缓存元数据实体
- * <p>
- * 记录中间结果缓存的详细信息，用于追踪和管理批处理过程中的缓存数据。
- * </p>
  */
 @Data
+@Schema(description = "批处理缓存元数据")
 public class BatchCacheMetadata {
 
+    @Schema(description = "主键ID")
     private Long id;
 
-    /** 缓存键 */
+    @Schema(description = "缓存键")
     private String cacheKey;
 
-    /** 缓存类型: FILE/REDIS/ES/TEMP_TABLE */
+    @Schema(description = "缓存类型: FILE/REDIS/ES/TEMP_TABLE")
     private String cacheType;
 
-    /** 记录数 */
+    @Schema(description = "记录数")
     private Long recordCount;
 
-    /** 数据大小(字节) */
+    @Schema(description = "数据大小(字节)")
     private Long sizeBytes;
 
-    /** 数据结构JSON */
+    @Schema(description = "数据结构JSON")
     private String schemaInfo;
 
-    /** 数据来源信息JSON */
+    @Schema(description = "数据来源信息JSON")
     private String sourceInfo;
 
-    /** 创建者(Job名称) */
+    @Schema(description = "创建者(Job名称)")
     private String createdBy;
 
-    /** 关联执行ID */
+    @Schema(description = "关联执行ID")
     private Long executionId;
 
-    /** 过期时间 */
+    @Schema(description = "过期时间")
     private LocalDateTime expireTime;
 
-    /** 是否已过期 */
+    @Schema(description = "是否已过期")
     private Integer isExpired;
 
+    @Schema(description = "创建时间")
     private LocalDateTime createTime;
+    
+    @Schema(description = "更新时间")
     private LocalDateTime updateTime;
 }

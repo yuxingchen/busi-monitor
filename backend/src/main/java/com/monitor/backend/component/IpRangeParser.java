@@ -1,5 +1,6 @@
-package com.monitor.backend.service;
+package com.monitor.backend.component;
 
+import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
@@ -8,7 +9,7 @@ import java.util.List;
  * IP段解析服务
  * 支持多种格式：单IP、逗号分隔、范围(1-10)、CIDR
  */
-@Service
+@Component
 public class IpRangeParser {
     
     /**
