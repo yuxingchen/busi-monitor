@@ -85,7 +85,10 @@
                     <el-tag :type="getLevelType(alarm.level)" size="small">{{ alarm.level }}</el-tag>
                     <span class="alarm-time">{{ formatTime(alarm.firstTriggerTime || alarm.time) }}</span>
                   </div>
-                  <div class="alarm-message">{{ alarm.alarmMessage || alarm.message }}</div>
+                  <div class="alarm-message">
+                    <MdPreview :editorId="'popover-alarm-' + alarm.id"
+                      :modelValue="alarm.alarmMessage || alarm.message" />
+                  </div>
                   <div class="alarm-actions">
                     <span class="action-btn confirm" @click="acknowledgeAlarm(alarm)">确认</span>
                     <span class="action-btn suppress" @click="suppressAlarm(alarm)">抑制</span>
@@ -144,6 +147,8 @@ import { Client } from '@stomp/stompjs'
 import SockJS from 'sockjs-client'
 import request from './api/request'
 import AlarmNotificationPanel from './components/AlarmNotificationPanel.vue'
+import { MdPreview } from 'md-editor-v3'
+import 'md-editor-v3/lib/preview.css'
 
 const route = useRoute()
 const router = useRouter()
@@ -780,6 +785,76 @@ body {
   color: var(--theme-text);
   line-height: 1.4;
   word-break: break-all;
+}
+
+/* Markdown 预览样式覆盖 */
+.alarm-message :deep(.md-editor-preview-wrapper),
+.alarm-message :deep(.md-editor),
+.alarm-message :deep(.md-editor-preview),
+.alarm-message :deep([class*="md-editor"]) {
+  padding: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.alarm-message :deep(.md-editor-preview) {
+  font-size: 13px !important;
+  line-height: 1.4 !important;
+  color: var(--theme-text) !important;
+  font-family: inherit !important;
+}
+
+.alarm-message :deep(.md-editor-preview p) {
+  margin: 0 0 4px 0 !important;
+  color: var(--theme-text) !important;
+  background: transparent !important;
+}
+
+.alarm-message :deep(.md-editor-preview blockquote) {
+  margin: 4px 0 !important;
+  padding: 4px 8px !important;
+  border-left: 3px solid var(--theme-accent, #00d4ff) !important;
+  background: rgba(0, 212, 255, 0.1) !important;
+  color: var(--theme-text) !important;
+}
+
+.alarm-message :deep(.md-editor-preview blockquote p) {
+  color: var(--theme-text) !important;
+}
+
+.alarm-message :deep(.md-editor-preview strong),
+.alarm-message :deep(.md-editor-preview b) {
+  color: var(--theme-text) !important;
+  font-weight: 600 !important;
+}
+
+.alarm-message :deep(.md-editor-preview h1),
+.alarm-message :deep(.md-editor-preview h2),
+.alarm-message :deep(.md-editor-preview h3),
+.alarm-message :deep(.md-editor-preview h4),
+.alarm-message :deep(.md-editor-preview h5),
+.alarm-message :deep(.md-editor-preview h6) {
+  color: var(--theme-text) !important;
+  margin: 0 0 4px 0 !important;
+  font-size: 13px !important;
+}
+
+.alarm-message :deep(.md-editor-preview a) {
+  color: var(--theme-accent, #00d4ff) !important;
+}
+
+.alarm-message :deep(.md-editor-preview code) {
+  color: var(--theme-text) !important;
+  background: rgba(0, 212, 255, 0.1) !important;
+  padding: 1px 4px !important;
+  border-radius: 3px !important;
+}
+
+.alarm-message :deep(.md-editor-preview *) {
+  color: inherit;
+  background: transparent !important;
 }
 
 .alarm-actions {

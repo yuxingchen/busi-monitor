@@ -3,11 +3,12 @@ package com.monitor.backend.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.monitor.backend.constant.SystemFields;
-import com.monitor.backend.constant.WorkflowStepType;
+import com.monitor.backend.enums.WorkflowStepType;
 import com.monitor.backend.entity.MonitorTask;
 import com.monitor.backend.entity.Workflow;
 import com.monitor.backend.mapper.MonitorTaskMapper;
 import com.monitor.backend.mapper.WorkflowMapper;
+import com.monitor.backend.util.DateTimeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -236,7 +237,7 @@ public class DynamicTableService {
             logger.info("实时执行SQL获取{}条数据: taskId={}", result.size(), task.getId());
 
             // 只有当结果中没有execution_time字段时，才添加当前时间
-            String now = LocalDateTime.now().format(TIME_FORMATTER);
+            String now = DateTimeUtils.now().format(TIME_FORMATTER);
             result.forEach(row -> {
                 if (!row.containsKey(SystemFields.EXECUTION_TIME) || row.get(SystemFields.EXECUTION_TIME) == null) {
                     row.put(SystemFields.EXECUTION_TIME, now);

@@ -1,6 +1,7 @@
 package com.monitor.backend.controller;
 
 import com.monitor.backend.common.ApiResponse;
+import com.monitor.backend.dto.dashboard.DashboardRequest;
 import com.monitor.backend.entity.Dashboard;
 import com.monitor.backend.entity.DashboardWidget;
 import com.monitor.backend.exception.BusinessException;
@@ -75,8 +76,9 @@ public class DashboardController {
 
     @Operation(summary = "创建仪表盘")
     @PostMapping
-    public ApiResponse<Dashboard> create(@RequestBody Dashboard dashboard) {
-        log.info("创建仪表盘: name={}", dashboard.getName());
+    public ApiResponse<Dashboard> create(@RequestBody DashboardRequest request) {
+        log.info("创建仪表盘: name={}", request.getName());
+        Dashboard dashboard = convertToEntity(request);
         if (dashboard.getGridCols() == null) dashboard.setGridCols(24);
         if (dashboard.getGridRows() == null) dashboard.setGridRows(12);
         if (dashboard.getCellHeight() == null) dashboard.setCellHeight(60);
@@ -88,10 +90,11 @@ public class DashboardController {
 
     @Operation(summary = "更新仪表盘")
     @PutMapping
-    public ApiResponse<Dashboard> update(@RequestBody Dashboard dashboard) {
-        log.info("更新仪表盘: id={}", dashboard.getId());
-        if (dashboard.getIsDefault() != null && dashboard.getIsDefault() == 1) {
-            dashboardMapper.clearOtherDefaults(dashboard.getId());
+    public ApiResponse<Dashboard> update(@RequestBody DashboardRequest request) {
+        log.info("更新仪表盘: id={}", request.getId());
+        Dashboard dashboard = convertToEntity(request);
+        if (request.getIsDefault() != null && request.getIsDefault() == 1) {
+            dashboardMapper.clearOtherDefaults(request.getId());
         }
         dashboardMapper.update(dashboard);
         return ApiResponse.ok(dashboard);
@@ -174,5 +177,20 @@ public class DashboardController {
         Map<String, Object> data = new HashMap<>();
         data.put("widgetCount", widgets != null ? widgets.size() : 0);
         return ApiResponse.ok("布局保存成功", data);
+    }
+
+    /**
+     * 将仪表盘请求DTO转换为实体
+     */
+    private Dashboard convertToEntity(DashboardRequest request) {
+        Dashboard dashboard = new Dashboard();
+        dashboard.setId(request.getId());
+        dashboard.setName(request.getName());
+        dashboard.setGridCols(request.getGridCols());
+        dashboard.setGridRows(request.getGridRows());
+        dashboard.setCellHeight(request.getCellHeight());
+        dashboard.setIsDefault(request.getIsDefault());
+        dashboard.setIsActive(request.getIsActive());
+        return dashboard;
     }
 }

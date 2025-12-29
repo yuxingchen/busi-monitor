@@ -4,6 +4,7 @@ import com.monitor.backend.alarm.AlarmWebSocketService;
 import com.monitor.backend.entity.AlarmActive;
 import com.monitor.backend.entity.AlarmChannel;
 import com.monitor.backend.entity.AlarmTemplate;
+import com.monitor.backend.enums.AlarmChannelType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -28,8 +29,8 @@ public class AnnouncementAlarmSender implements AlarmSender {
     }
 
     @Override
-    public String getType() {
-        return "ANNOUNCEMENT";
+    public AlarmChannelType getType() {
+        return AlarmChannelType.ANNOUNCEMENT;
     }
 
     @Override

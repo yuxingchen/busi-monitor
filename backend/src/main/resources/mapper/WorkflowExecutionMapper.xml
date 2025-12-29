@@ -59,7 +59,12 @@
 
     <update id="update">
         UPDATE monitor_workflow_execution
-        SET status = #{status}, end_time = #{endTime}, step_results = #{stepResults}, error_message = #{errorMessage}
+        <set>
+            <if test="status != null">status = #{status},</if>
+            <if test="endTime != null">end_time = #{endTime},</if>
+            <if test="stepResults != null">step_results = #{stepResults},</if>
+            <if test="errorMessage != null">error_message = #{errorMessage},</if>
+        </set>
         WHERE id = #{id}
     </update>
 

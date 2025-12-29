@@ -36,7 +36,7 @@ public class AlarmContext {
     private String operator;
 
     /** 告警级别: INFO, WARNING, CRITICAL */
-    private String level = "WARNING";
+    private String level;
 
     /** 告警渠道ID列表 */
     private List<Long> channelIds;
@@ -46,4 +46,5 @@ public class AlarmContext {
 
     /** 额外参数 */
     private Map<String, Object> extraParams;
+
 }

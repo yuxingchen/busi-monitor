@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.monitor.backend.constant.BatchDefaults;
 import com.monitor.backend.entity.AlarmChannel;
 import com.monitor.backend.entity.AlarmTemplate;
+import com.monitor.backend.enums.AlarmChannelType;
+import com.monitor.backend.enums.AlarmContentType;
+import com.monitor.backend.util.MarkdownUtils;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,8 +35,8 @@ public class EmailAlarmSender implements AlarmSender {
     }
 
     @Override
-    public String getType() {
-        return "EMAIL";
+    public AlarmChannelType getType() {
+        return AlarmChannelType.EMAIL;
     }
 
     @Override
@@ -56,9 +59,9 @@ public class EmailAlarmSender implements AlarmSender {
 
             // 根据内容格式决定是否进行 Markdown 转换
             String htmlContent;
-            if (template != null && "MARKDOWN".equals(template.getContentType())) {
+            if (template != null && AlarmContentType.MARKDOWN.name().equals(template.getContentType())) {
                 // Markdown 格式：转换为 HTML
-                htmlContent = com.monitor.backend.util.MarkdownUtils.toEmailHtml(content);
+                htmlContent = MarkdownUtils.toHtml(content);
             } else {
                 // 纯文本格式：简单包装为 HTML
                 htmlContent = wrapPlainTextAsHtml(content);

@@ -35,8 +35,14 @@
 
     <update id="update">
         UPDATE monitor_datasource
-        SET name = #{name}, url = #{url}, username = #{username}, password_encrypted = #{passwordEncrypted},
-            driver_class_name = #{driverClassName}, update_time = NOW()
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="url != null">url = #{url},</if>
+            <if test="username != null">username = #{username},</if>
+            <if test="passwordEncrypted != null">password_encrypted = #{passwordEncrypted},</if>
+            <if test="driverClassName != null">driver_class_name = #{driverClassName},</if>
+            update_time = NOW()
+        </set>
         WHERE id = #{id}
     </update>
 

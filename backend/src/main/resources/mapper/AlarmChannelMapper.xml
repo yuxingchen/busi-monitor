@@ -48,8 +48,13 @@
 
     <update id="update">
         UPDATE alarm_channel
-        SET name = #{name}, type = #{type}, config = #{config},
-            is_active = #{isActive}, update_time = #{updateTime}
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="type != null">type = #{type},</if>
+            <if test="config != null">config = #{config},</if>
+            <if test="isActive != null">is_active = #{isActive},</if>
+            update_time = NOW()
+        </set>
         WHERE id = #{id}
     </update>
 

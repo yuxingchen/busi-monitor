@@ -1,77 +1,111 @@
 package com.monitor.backend.util;
 
-import com.vladsch.flexmark.html.HtmlRenderer;
-import com.vladsch.flexmark.parser.Parser;
-import com.vladsch.flexmark.util.ast.Node;
-import com.vladsch.flexmark.util.data.MutableDataSet;
-
 /**
  * Markdown 工具类
- * <p>
- * 提供 Markdown 转 HTML 功能，用于告警邮件渲染
- * </p>
+ * 提供 Markdown 格式处理的相关方法
  */
 public class MarkdownUtils {
 
-    private static final Parser PARSER;
-    private static final HtmlRenderer RENDERER;
-
-    static {
-        MutableDataSet options = new MutableDataSet();
-        // 可以添加扩展配置，如表格、代码高亮等
-        PARSER = Parser.builder(options).build();
-        RENDERER = HtmlRenderer.builder(options).build();
+    private MarkdownUtils() {
+        // 工具类禁止实例化
     }
 
     /**
-     * 将 Markdown 转换为 HTML
+     * 去除 Markdown 格式符号，将段落用逗号分隔
+     * 适用于短信发送等纯文本场景
      *
-     * @param markdown Markdown 文本
-     * @return HTML 文本
+     * @param content Markdown 格式的内容
+     * @return 纯文本内容，段落之间用中文逗号分隔
+     */
+    public static String stripMarkdown(String content) {
+        if (content == null || content.isEmpty()) {
+            return content;
+        }
+
+        String result = content;
+
+        // 移除代码块
+        result = result.replaceAll("```[\\s\\S]*?```", "");
+        result = result.replaceAll("`([^`]+)`", "$1");
+
+        // 移除标题符号 (# ## ### 等)
+        result = result.replaceAll("(?m)^#{1,6}\\s*", "");
+
+        // 移除加粗和斜体 (**text**, *text*, __text__, _text_)
+        result = result.replaceAll("\\*\\*(.+?)\\*\\*", "$1");
+        result = result.replaceAll("\\*(.+?)\\*", "$1");
+        result = result.replaceAll("__(.+?)__", "$1");
+        result = result.replaceAll("_(.+?)_", "$1");
+
+        // 移除删除线 ~~text~~
+        result = result.replaceAll("~~(.+?)~~", "$1");
+
+        // 移除链接 [text](url) -> text
+        result = result.replaceAll("\\[([^\\]]+)\\]\\([^)]+\\)", "$1");
+
+        // 移除图片 ![alt](url)
+        result = result.replaceAll("!\\[([^\\]]*)\\]\\([^)]+\\)", "");
+
+        // 移除引用符号 >
+        result = result.replaceAll("(?m)^>\\s*", "");
+
+        // 移除列表符号 (-, *, +, 1. 2. 等)
+        result = result.replaceAll("(?m)^\\s*[-*+]\\s+", "");
+        result = result.replaceAll("(?m)^\\s*\\d+\\.\\s+", "");
+
+        // 移除水平分隔线 (---, ***, ___)
+        result = result.replaceAll("(?m)^[-*_]{3,}\\s*$", "");
+
+        // 将多个换行替换为逗号
+        result = result.replaceAll("\\n{2,}", "，");
+
+        // 单个换行也替换为逗号
+        result = result.replaceAll("\\n", "，");
+
+        // 清理多余的逗号和空格
+        result = result.replaceAll("，{2,}", "，");
+        result = result.replaceAll("^，|，$", "");
+        result = result.trim();
+
+        return result;
+    }
+
+    /**
+     * 将 Markdown 转换为 HTML（简易实现）
+     * 支持基本的 Markdown 语法
+     *
+     * @param markdown Markdown 格式的内容
+     * @return HTML 内容
      */
     public static String toHtml(String markdown) {
         if (markdown == null || markdown.isEmpty()) {
-            return "";
+            return markdown;
         }
-        Node document = PARSER.parse(markdown);
-        return RENDERER.render(document);
-    }
 
-    /**
-     * 将 Markdown 转换为完整 HTML 邮件格式
-     *
-     * @param markdown Markdown 文本
-     * @return 包含样式的完整 HTML
-     */
-    public static String toEmailHtml(String markdown) {
-        String htmlContent = toHtml(markdown);
-        return wrapWithEmailStyle(htmlContent);
-    }
+        String result = markdown;
 
-    /**
-     * 为 HTML 内容添加邮件样式
-     */
-    private static String wrapWithEmailStyle(String htmlContent) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("<!DOCTYPE html><html><head><meta charset='UTF-8'>");
-        sb.append("<style>");
-        sb.append("body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; ");
-        sb.append("line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }");
-        sb.append("h1, h2, h3 { color: #2c3e50; margin-top: 20px; }");
-        sb.append("code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }");
-        sb.append("pre { background: #2d2d2d; color: #f8f8f2; padding: 12px; border-radius: 6px; overflow-x: auto; }");
-        sb.append("pre code { background: transparent; padding: 0; }");
-        sb.append("table { border-collapse: collapse; width: 100%; margin: 16px 0; }");
-        sb.append("th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }");
-        sb.append("th { background: #f5f5f5; font-weight: 600; }");
-        sb.append("blockquote { border-left: 4px solid #ddd; margin: 16px 0; padding: 0 16px; color: #666; }");
-        sb.append("a { color: #3498db; text-decoration: none; }");
-        sb.append(".alert { padding: 12px 16px; border-radius: 6px; margin: 16px 0; }");
-        sb.append(".alert-warning { background: #fff3cd; border: 1px solid #ffc107; color: #856404; }");
-        sb.append(".alert-danger { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }");
-        sb.append("</style></head><body>");
-        sb.append(htmlContent);
-        sb.append("</body></html>");
-        return sb.toString();
+        // 代码块
+        result = result.replaceAll("```([\\s\\S]*?)```", "<pre><code>$1</code></pre>");
+        result = result.replaceAll("`([^`]+)`", "<code>$1</code>");
+
+        // 标题
+        result = result.replaceAll("(?m)^######\\s*(.+)$", "<h6>$1</h6>");
+        result = result.replaceAll("(?m)^#####\\s*(.+)$", "<h5>$1</h5>");
+        result = result.replaceAll("(?m)^####\\s*(.+)$", "<h4>$1</h4>");
+        result = result.replaceAll("(?m)^###\\s*(.+)$", "<h3>$1</h3>");
+        result = result.replaceAll("(?m)^##\\s*(.+)$", "<h2>$1</h2>");
+        result = result.replaceAll("(?m)^#\\s*(.+)$", "<h1>$1</h1>");
+
+        // 加粗和斜体
+        result = result.replaceAll("\\*\\*(.+?)\\*\\*", "<strong>$1</strong>");
+        result = result.replaceAll("\\*(.+?)\\*", "<em>$1</em>");
+
+        // 链接
+        result = result.replaceAll("\\[([^\\]]+)\\]\\(([^)]+)\\)", "<a href=\"$2\">$1</a>");
+
+        // 换行转 <br>
+        result = result.replaceAll("\\n", "<br>");
+
+        return result;
     }
 }

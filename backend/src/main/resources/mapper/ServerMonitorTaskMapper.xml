@@ -73,9 +73,19 @@
 
     <update id="update">
         UPDATE server_monitor_task
-        SET name = #{name}, server_id = #{serverId}, template_id = #{templateId},
-            collect_script = #{collectScript}, params = #{params}, threshold_rule = #{thresholdRule},
-            cron_expression = #{cronExpression}, alarm_channels = #{alarmChannels}, alarm_template_id = #{alarmTemplateId}, is_active = #{isActive}
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="serverId != null">server_id = #{serverId},</if>
+            <if test="templateId != null">template_id = #{templateId},</if>
+            <if test="collectScript != null">collect_script = #{collectScript},</if>
+            <if test="params != null">params = #{params},</if>
+            <if test="thresholdRule != null">threshold_rule = #{thresholdRule},</if>
+            <if test="cronExpression != null">cron_expression = #{cronExpression},</if>
+            <if test="alarmChannels != null">alarm_channels = #{alarmChannels},</if>
+            <if test="alarmTemplateId != null">alarm_template_id = #{alarmTemplateId},</if>
+            <if test="isActive != null">is_active = #{isActive},</if>
+            update_time = NOW()
+        </set>
         WHERE id = #{id}
     </update>
 

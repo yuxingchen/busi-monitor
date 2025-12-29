@@ -57,9 +57,13 @@
     <el-dialog v-model="useDialogVisible" :title="'配置: ' + selectedTemplate.name" width="600px">
       <el-form label-width="100px">
         <el-form-item label="选择服务器" required>
-          <el-select v-model="taskConfig.serverIds" multiple placeholder="选择目标服务器">
+          <el-select v-model="taskConfig.serverIds" multiple placeholder="选择目标服务器" style="width: 100%;">
             <el-option v-for="s in servers" :key="s.id" :label="`${s.name} (${s.ip})`" :value="s.id" />
           </el-select>
+        </el-form-item>
+
+        <el-form-item label="任务名称" required>
+          <el-input v-model="taskConfig.taskName" placeholder="请输入任务名称" />
         </el-form-item>
 
         <el-divider content-position="left">监控参数</el-divider>
@@ -80,6 +84,16 @@
             <el-option label="每30分钟" value="0 */30 * * * ?" />
             <el-option label="每小时" value="0 0 * * * ?" />
           </el-select>
+        </el-form-item>
+
+        <!-- 脚本参数配置 -->
+        <el-form-item label="脚本参数" v-if="parsedParams.length > 0">
+          <div class="params-config">
+            <div v-for="param in parsedParams" :key="param" class="param-row">
+              <span class="param-name">${{ param }}</span>
+              <el-input v-model="taskParams[param]" :placeholder="`请输入 ${param} 的值`" size="small" style="flex: 1;" />
+            </div>
+          </div>
         </el-form-item>
 
         <el-divider content-position="left">告警配置</el-divider>
@@ -103,23 +117,22 @@
 
       <template #footer>
         <el-button @click="useDialogVisible = false">取消</el-button>
-        <el-button type="success" @click="testScript">测试脚本</el-button>
+        <el-button type="success" :loading="testLoading" @click="testScript">测试脚本</el-button>
         <el-button type="primary" @click="createTask">创建任务</el-button>
       </template>
     </el-dialog>
 
-    <!-- 测试结果对话框 -->
-    <el-dialog v-model="testResultVisible" title="测试结果" width="500px">
-      <pre class="test-output">{{ testOutput }}</pre>
-    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { useRouter } from 'vue-router'
 import request from '../api/request'
 import MonitorIcon from '../components/MonitorIcon.vue'
+
+const router = useRouter()
 
 const activeCategory = ref('BASIC')
 const templates = ref([])
@@ -128,18 +141,59 @@ const channels = ref([])
 const alarmTemplates = ref([])
 
 const useDialogVisible = ref(false)
-const testResultVisible = ref(false)
-const testOutput = ref('')
+const testLoading = ref(false)
 
 const selectedTemplate = ref({})
 const taskConfig = reactive({
   serverIds: [],
+  taskName: '',
   collectScript: '',
   thresholdValue: 50,
   cronExpression: '0 */5 * * * ?',
   alarmTemplateId: null,
   channelIds: []
 })
+
+// 任务参数配置
+const taskParams = reactive({})  // 存储任务参数 { key: value }
+const parsedParams = ref([])     // 解析出的参数列表
+
+// 解析脚本中的 ${} 占位符
+const parseScriptParams = (script) => {
+  if (!script) return []
+  const regex = /\$\{([^}]+)\}/g
+  const params = new Set()
+  let match
+  while ((match = regex.exec(script)) !== null) {
+    params.add(match[1])
+  }
+  return Array.from(params)
+}
+
+// 更新解析的参数列表
+const updateParsedParams = () => {
+  const scriptParams = parseScriptParams(taskConfig.collectScript)
+  let templateParams = []
+
+  // 如果选择了告警模板，解析模板中的参数
+  if (taskConfig.alarmTemplateId) {
+    const template = alarmTemplates.value.find(t => t.id === taskConfig.alarmTemplateId)
+    if (template && template.content) {
+      templateParams = parseScriptParams(template.content)
+    }
+  }
+
+  // 合并并去重，排除标准变量
+  const standardVars = ['serverName', 'value', 'threshold', 'taskName', 'taskId', 'operator', 'triggerType', 'level', 'ip']
+  const allParams = [...new Set([...scriptParams, ...templateParams])]
+    .filter(p => !standardVars.includes(p))
+
+  parsedParams.value = allParams
+}
+
+// 监听采集脚本变化，动态更新参数列表
+watch(() => taskConfig.collectScript, updateParsedParams)
+watch(() => taskConfig.alarmTemplateId, updateParsedParams)
 
 const basicTemplates = computed(() => templates.value.filter(t => t.category === 'BASIC'))
 const componentTemplates = computed(() => templates.value.filter(t => t.category === 'COMPONENT'))
@@ -170,14 +224,21 @@ const useTemplate = (template) => {
     threshold = th.value || 50
   } catch (e) { }
 
+  // 清空参数
+  Object.keys(taskParams).forEach(k => delete taskParams[k])
+
   Object.assign(taskConfig, {
     serverIds: [],
+    taskName: template.name || '',
     collectScript: template.collectScript || '',
     thresholdValue: threshold,
     cronExpression: template.defaultCron || '0 */5 * * * ?',
     alarmTemplateId: template.alarmTemplateId || null,
     channelIds: []
   })
+
+  // 解析参数
+  updateParsedParams()
 
   useDialogVisible.value = true
 }
@@ -188,27 +249,79 @@ const testScript = async () => {
     return
   }
 
+  testLoading.value = true
   try {
+    // 替换脚本中的参数
+    let script = taskConfig.collectScript
+    for (const [key, value] of Object.entries(taskParams)) {
+      script = script.replace(new RegExp('\\$\\{' + key + '\\}', 'g'), value || '')
+    }
+
     const serverId = taskConfig.serverIds[0]
+    // request.js 响应拦截器已自动解包，成功时直接返回 data 字段内容
     const result = await request.post(`/server-asset/${serverId}/execute`, {
-      script: taskConfig.collectScript
+      script: script
     })
 
-    if (result.status === 'success') {
-      testOutput.value = result.output
-      testResultVisible.value = true
-      ElMessage.success('脚本执行成功')
-    } else {
-      ElMessage.error(result.message)
-    }
+    // result 直接就是脚本执行结果（如 "0"）
+    ElMessage.success(`测试成功，响应内容：${result}`)
   } catch (e) {
-    ElMessage.error('测试失败')
+    ElMessage.error('测试失败: ' + (e.message || '未知错误'))
+  } finally {
+    testLoading.value = false
   }
 }
 
 const createTask = async () => {
-  ElMessage.info('任务创建功能开发中...')
-  useDialogVisible.value = false
+  // 表单验证
+  if (taskConfig.serverIds.length === 0) {
+    ElMessage.warning('请选择目标服务器')
+    return
+  }
+  if (!taskConfig.taskName || !taskConfig.taskName.trim()) {
+    ElMessage.warning('请输入任务名称')
+    return
+  }
+
+  try {
+    let successCount = 0
+
+    // 构建阈值规则 JSON
+    const thresholdRule = JSON.stringify({
+      operator: '>',
+      value: taskConfig.thresholdValue
+    })
+
+    // 序列化参数
+    const paramsJson = Object.keys(taskParams).length > 0 ? JSON.stringify(taskParams) : null
+
+    // 告警通道ID列表（逗号分隔）
+    const alarmChannels = taskConfig.channelIds.length > 0 ? taskConfig.channelIds.join(',') : null
+
+    // 为每个服务器创建任务
+    for (const serverId of taskConfig.serverIds) {
+      const task = {
+        serverId,
+        templateId: selectedTemplate.value.id,
+        name: taskConfig.taskName.trim(),
+        collectScript: taskConfig.collectScript,
+        params: paramsJson,
+        thresholdRule: thresholdRule,
+        cronExpression: taskConfig.cronExpression,
+        alarmTemplateId: taskConfig.alarmTemplateId,
+        alarmChannels: alarmChannels
+      }
+
+      await request.post('/server-monitor-task', task)
+      successCount++
+    }
+
+    ElMessage.success(`成功创建 ${successCount} 个监控任务`)
+    useDialogVisible.value = false
+
+  } catch (e) {
+    ElMessage.error('创建任务失败: ' + (e.message || '未知错误'))
+  }
 }
 
 // 格式化阈值规则
@@ -336,5 +449,38 @@ onMounted(() => { loadData() })
   max-height: 300px;
   overflow-y: auto;
   color: var(--theme-text);
+}
+
+/* 参数配置样式 */
+.params-config {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  background: var(--el-fill-color-lighter);
+  border-radius: 8px;
+  padding: 16px;
+  border: 1px solid var(--theme-border);
+}
+
+.param-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.param-name {
+  min-width: 120px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+  color: var(--el-color-success);
+  background: var(--el-color-success-light-9);
+  border-radius: 4px;
+  text-align: center;
+  font-weight: 500;
+  height: 24px;
+  line-height: 24px;
+  padding: 0 12px;
+  box-sizing: border-box;
 }
 </style>

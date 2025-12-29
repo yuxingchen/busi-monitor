@@ -1,10 +1,11 @@
 package com.monitor.backend.batch;
 
-import com.monitor.backend.constant.ExecutionStatus;
+import com.monitor.backend.enums.ExecutionStatus;
 import com.monitor.backend.entity.BatchPerformanceLog;
 import com.monitor.backend.entity.WorkflowExecution;
 import com.monitor.backend.mapper.BatchPerformanceLogMapper;
 import com.monitor.backend.mapper.WorkflowExecutionMapper;
+import com.monitor.backend.util.DateTimeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.JobExecution;
@@ -14,7 +15,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
@@ -96,7 +96,7 @@ public class BatchJobCompletionListener implements JobExecutionListener {
             }
 
             execution.setStatus(workflowStatus);
-            execution.setEndTime(LocalDateTime.now());
+            execution.setEndTime(DateTimeUtils.now());
             if (errorMessage != null) {
                 execution.setErrorMessage(errorMessage);
             }

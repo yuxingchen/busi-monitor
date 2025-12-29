@@ -35,7 +35,12 @@
 
     <update id="update">
         UPDATE sys_user
-        SET username = #{username}, role = #{role}, enabled = #{enabled}, update_time = NOW()
+        <set>
+            <if test="username != null">username = #{username},</if>
+            <if test="role != null">role = #{role},</if>
+            <if test="enabled != null">enabled = #{enabled},</if>
+            update_time = NOW()
+        </set>
         WHERE id = #{id}
     </update>
 

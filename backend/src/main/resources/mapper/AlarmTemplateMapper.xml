@@ -43,8 +43,14 @@
 
     <update id="update">
         UPDATE alarm_template
-        SET name = #{name}, subject = #{subject},
-            content = #{content}, content_type = #{contentType}, is_default = #{isDefault}, update_time = #{updateTime}
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="subject != null">subject = #{subject},</if>
+            <if test="content != null">content = #{content},</if>
+            <if test="contentType != null">content_type = #{contentType},</if>
+            <if test="isDefault != null">is_default = #{isDefault},</if>
+            update_time = NOW()
+        </set>
         WHERE id = #{id}
     </update>
 

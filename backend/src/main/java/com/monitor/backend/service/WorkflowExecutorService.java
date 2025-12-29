@@ -12,9 +12,14 @@ import com.monitor.backend.constant.*;
 import com.monitor.backend.entity.Workflow;
 import com.monitor.backend.entity.WorkflowExecution;
 import com.monitor.backend.entity.WorkflowStep;
+import com.monitor.backend.enums.ExecutionStatus;
+import com.monitor.backend.enums.JoinType;
+import com.monitor.backend.enums.LoopSourceType;
+import com.monitor.backend.enums.WorkflowStepType;
 import com.monitor.backend.mapper.WorkflowExecutionMapper;
 import com.monitor.backend.mapper.WorkflowMapper;
 import com.monitor.backend.mapper.WorkflowStepMapper;
+import com.monitor.backend.util.DateTimeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.Job;
@@ -26,7 +31,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.*;
 
 /**
@@ -169,7 +173,7 @@ public class WorkflowExecutorService {
         WorkflowExecution execution = new WorkflowExecution();
         execution.setWorkflowId(workflow.getId());
         execution.setStatus(ExecutionStatus.BATCH_STARTING.getCode());
-        execution.setStartTime(LocalDateTime.now());
+        execution.setStartTime(DateTimeUtils.now());
         executionMapper.insert(execution);
 
         try {
@@ -249,7 +253,7 @@ public class WorkflowExecutorService {
 
             // 更新执行状态
             execution.setStatus(ExecutionStatus.SUCCESS.getCode());
-            execution.setEndTime(LocalDateTime.now());
+            execution.setEndTime(DateTimeUtils.now());
             Map<String, Object> resultInfo = new HashMap<>();
             resultInfo.put("layerCount", layers.size());
             resultInfo.put("totalSteps", steps.size());
@@ -263,7 +267,7 @@ public class WorkflowExecutorService {
         } catch (Exception e) {
             logger.error("批处理执行失败: " + workflow.getId(), e);
             execution.setStatus(ExecutionStatus.FAILED.getCode());
-            execution.setEndTime(LocalDateTime.now());
+            execution.setEndTime(DateTimeUtils.now());
             execution.setErrorMessage("批处理失败: " + e.getMessage());
             executionMapper.update(execution);
         }
@@ -300,7 +304,7 @@ public class WorkflowExecutorService {
                 .addLong("partitionCount", stepInfo.getPartitionCount().longValue())
                 .addLong("chunkSize", stepInfo.getChunkSize().longValue())
                 .addString("outputTable", getOutputTableName(workflow))
-                .addLocalDateTime("startTime", LocalDateTime.now())
+                .addLocalDateTime("startTime", DateTimeUtils.now())
                 .toJobParameters();
 
         // 同步执行Spring Batch Job
@@ -553,7 +557,7 @@ public class WorkflowExecutorService {
         WorkflowExecution execution = new WorkflowExecution();
         execution.setWorkflowId(workflowId);
         execution.setStatus(ExecutionStatus.RUNNING.getCode());
-        execution.setStartTime(LocalDateTime.now());
+        execution.setStartTime(DateTimeUtils.now());
         executionMapper.insert(execution);
 
         // 4. 执行上下文
@@ -594,7 +598,7 @@ public class WorkflowExecutorService {
 
             // 7. 更新执行状态为成功
             execution.setStatus(ExecutionStatus.SUCCESS.getCode());
-            execution.setEndTime(LocalDateTime.now());
+            execution.setEndTime(DateTimeUtils.now());
             execution.setStepResults(objectMapper.writeValueAsString(stepResults));
             executionMapper.update(execution);
 
@@ -604,7 +608,7 @@ public class WorkflowExecutorService {
             logger.error("Workflow execution failed: " + workflowId, e);
 
             execution.setStatus(ExecutionStatus.FAILED.getCode());
-            execution.setEndTime(LocalDateTime.now());
+            execution.setEndTime(DateTimeUtils.now());
             execution.setErrorMessage(e.getMessage());
             try {
                 execution.setStepResults(objectMapper.writeValueAsString(stepResults));
@@ -1064,7 +1068,7 @@ public class WorkflowExecutorService {
                     .addLong("chunkSize", (long) chunkSize)
                     .addString("loopValue", String.valueOf(loopValue))
                     .addLong("loopIteration", (long) iteration)
-                    .addLocalDateTime("startTime", LocalDateTime.now())
+                    .addLocalDateTime("startTime", DateTimeUtils.now())
                     .toJobParameters();
 
             // 同步执行（等待完成）- LOOP 迭代需要顺序完成

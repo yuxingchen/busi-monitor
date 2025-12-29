@@ -4,7 +4,7 @@
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
 
     <!-- 定义日志文件存放路径 -->
-    <property name="LOG_PATH" value="${LOG_PATH:-logs}"/>
+    <property name="LOG_PATH" value="logs"/>
     <property name="APP_NAME" value="busi-monitor"/>
     <property name="LOG_DATEFORMAT_PATTERN" value="yyyy-MM-dd HH:mm:ss.SSS"/>
 
@@ -58,9 +58,10 @@
     </springProfile>
 
     <!-- 默认配置（无profile时使用） -->
-    <springProfile name="default">
+    <springProfile name="dev">
         <root level="INFO">
             <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="ASYNC_FILE"/>
         </root>
         <logger name="com.monitor.backend" level="DEBUG"/>
         <logger name="org.springframework" level="INFO"/>

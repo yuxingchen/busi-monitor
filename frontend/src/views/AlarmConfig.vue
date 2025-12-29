@@ -196,15 +196,61 @@
         </template>
 
         <template v-else-if="editingChannel.type === 'SMS'">
-          <el-form-item label="接口URL">
+          <el-form-item label="接口地址" required>
             <el-input v-model="channelConfig.apiUrl" placeholder="https://sms.api.com/send" />
           </el-form-item>
-          <el-form-item label="API Key">
-            <el-input v-model="channelConfig.apiKey" />
-          </el-form-item>
-          <el-form-item label="接收手机">
+          <el-form-item label="接收手机" required>
             <el-input v-model="channelConfig.phones" placeholder="多个手机号用逗号分隔" />
           </el-form-item>
+          <el-form-item required>
+            <template #label>
+              接口参数
+              <el-tooltip placement="top">
+                <template #content>
+                  <div>可用占位符：</div>
+                  <div><code>${uuid}</code> - 唯一事务ID</div>
+                  <div><code>${phones}</code> - 接收手机号</div>
+                  <div><code>${datetime}</code> - 当前时间</div>
+                  <div><code>${content}</code> - 告警内容</div>
+                  <div><code>${encodeContent}</code> - 告警内容(编码)</div>
+                  <div><code>${encodeParam}</code> - 告警内容参数(编码)</div>
+                  <div><code>${sign}</code> - 签名值</div>
+                </template>
+                <el-icon style="margin-left: 4px; cursor: help;">
+                  <QuestionFilled />
+                </el-icon>
+              </el-tooltip>
+            </template>
+            <el-input v-model="channelConfig.paramsTemplate" type="textarea" :rows="8"
+              placeholder='{"transactionId": "${uuid}", "phoneNum": "${phones}", "reqTime": "${datetime}", "templateId": "001", "sign": "${sign}"}'
+              @input="parseParamsFields" />
+          </el-form-item>
+          <el-divider content-position="left">签名配置</el-divider>
+          <el-form-item label="加密方式">
+            <el-select v-model="channelConfig.signMethod" placeholder="选择加密方式">
+              <el-option label="无" value="NONE" />
+              <el-option label="MD5" value="MD5" />
+              <el-option label="SHA256" value="SHA256" />
+            </el-select>
+          </el-form-item>
+          <template v-if="channelConfig.signMethod && channelConfig.signMethod !== 'NONE'">
+            <el-form-item label="签名Key" required>
+              <el-input v-model="channelConfig.signKey" type="password" show-password placeholder="用于生成签名的密钥，将加密存储" />
+            </el-form-item>
+            <el-form-item label="签名字段">
+              <el-select v-model="channelConfig.signFields" multiple placeholder="选择签名字段（选择顺序即拼接顺序）"
+                style="width: 100%;">
+                <el-option v-for="field in allSignFields" :key="field" :label="field" :value="field" />
+              </el-select>
+              <div v-if="allSignFields.length === 1" style="color: #999; font-size: 12px; margin-top: 5px;">
+                请先在上方填写接口参数 JSON 模板
+              </div>
+              <div v-else-if="channelConfig.signFields && channelConfig.signFields.length > 0"
+                style="color: #67C23A; font-size: 12px; margin-top: 8px;">
+                <strong>拼接顺序：</strong>{{ channelConfig.signFields.join(' + ') }}
+              </div>
+            </el-form-item>
+          </template>
         </template>
 
         <template v-else-if="editingChannel.type === 'ANNOUNCEMENT'">
@@ -245,11 +291,15 @@
         <el-form-item label="内容模板" required>
           <template v-if="editingTemplate.contentType === 'MARKDOWN'">
             <div class="md-editor-wrapper">
-              <MdEditor v-model="editingTemplate.content" :preview="true" :toolbarsExclude="['github', 'save', 'mermaid', 'katex']" placeholder="支持 Markdown 语法，可使用变量: ${taskName}, ${ip}, ${value} 等" language="zh-CN" :style="{ height: '280px' }" />
+              <MdEditor v-model="editingTemplate.content" :preview="false"
+                :toolbarsExclude="['github', 'save', 'mermaid', 'katex']"
+                placeholder="支持 Markdown 语法，可使用变量: ${taskName}, ${ip}, ${value} 等" language="zh-CN"
+                :style="{ height: '280px' }" />
             </div>
           </template>
           <template v-else>
-            <el-input v-model="editingTemplate.content" type="textarea" :rows="8" placeholder="支持变量: ${taskName}, ${ip}, ${value}, ${threshold}, ${time}, ${triggerType}" />
+            <el-input v-model="editingTemplate.content" type="textarea" :rows="8"
+              placeholder="支持变量: ${taskName}, ${ip}, ${value}, ${threshold}, ${time}, ${triggerType}" />
           </template>
         </el-form-item>
         <el-form-item label="设为默认">
@@ -277,9 +327,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
-import { Plus, Refresh } from '@element-plus/icons-vue'
+import { Plus, Refresh, QuestionFilled } from '@element-plus/icons-vue'
 import { MdEditor } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 import request from '../api/request'
@@ -287,6 +337,7 @@ import SockJS from 'sockjs-client/dist/sockjs'
 import { Client } from '@stomp/stompjs'
 
 import { useRoute } from 'vue-router'
+import { encryptPassword } from '../utils/crypto'
 
 const route = useRoute()
 const activeTab = ref('channel')
@@ -323,11 +374,44 @@ const channelConfig = reactive({
   secret: '',
   // SMS
   apiUrl: '',
-  apiKey: '',
   phones: '',
+  paramsTemplate: '',
+  signMethod: 'NONE',
+  signKey: '',
+  signFields: [],
   // ANNOUNCEMENT
   displayDuration: 3600,
   level: 'warning'
+})
+
+// SMS 参数模板中解析出的字段列表
+const smsParamsFields = ref([])
+
+// 解析 JSON 模板中的字段 key
+const parseParamsFields = () => {
+  try {
+    const template = channelConfig.paramsTemplate
+    if (!template) {
+      smsParamsFields.value = []
+      return
+    }
+    // 解析 JSON 获取所有 key
+    const parsed = JSON.parse(template)
+    smsParamsFields.value = Object.keys(parsed).filter(k => k !== 'sign')
+  } catch (e) {
+    // JSON 解析失败时，尝试用正则提取 key
+    const matches = channelConfig.paramsTemplate.match(/"([^"]+)"\s*:/g)
+    if (matches) {
+      smsParamsFields.value = matches
+        .map(m => m.replace(/"/g, '').replace(':', '').trim())
+        .filter(k => k !== 'sign')
+    }
+  }
+}
+
+// 所有签名字段 = 解析的参数字段 + 密钥字段
+const allSignFields = computed(() => {
+  return [...smsParamsFields.value, 'signKey']
 })
 
 const editingTemplate = reactive({
@@ -386,17 +470,27 @@ const showChannelDialog = (channel = null) => {
     Object.assign(editingChannel, channel)
     try {
       const cfg = JSON.parse(channel.config || '{}')
+      // 处理 signFields 数组
+      if (typeof cfg.signFields === 'string') {
+        cfg.signFields = cfg.signFields ? cfg.signFields.split(',') : []
+      }
       Object.assign(channelConfig, cfg)
+      // 解析 SMS 参数字段
+      if (channel.type === 'SMS') {
+        parseParamsFields()
+      }
     } catch (e) { }
   } else {
     Object.assign(editingChannel, { id: null, name: '', type: 'EMAIL', isActive: 1 })
     Object.assign(channelConfig, { host: '', port: 465, username: '', password: '', recipients: '' })
+    smsParamsFields.value = []
   }
   channelDialogVisible.value = true
 }
 
 const onChannelTypeChange = () => {
   // Reset config based on type
+  smsParamsFields.value = []
   if (editingChannel.type === 'EMAIL') {
     Object.assign(channelConfig, { host: '', port: 465, username: '', password: '', recipients: '' })
   } else if (editingChannel.type === 'DINGTALK') {
@@ -404,14 +498,36 @@ const onChannelTypeChange = () => {
   } else if (editingChannel.type === 'WECHAT') {
     Object.assign(channelConfig, { webhook: '' })
   } else if (editingChannel.type === 'SMS') {
-    Object.assign(channelConfig, { apiUrl: '', apiKey: '', phones: '' })
+    Object.assign(channelConfig, {
+      apiUrl: '',
+      phones: '',
+      paramsTemplate: '',
+      signMethod: 'NONE',
+      signKey: '',
+      signFields: []
+    })
   } else {
     Object.assign(channelConfig, { displayDuration: 3600, level: 'warning' })
   }
 }
 
 const saveChannel = async () => {
-  editingChannel.config = JSON.stringify(channelConfig)
+  // 构建 config 对象
+  const configToSave = { ...channelConfig }
+
+  // SMS 类型特殊处理
+  if (editingChannel.type === 'SMS') {
+    // signFields 转为逗号分隔字符串
+    if (Array.isArray(configToSave.signFields)) {
+      configToSave.signFields = configToSave.signFields.join(',')
+    }
+    // 加密 signKey
+    if (configToSave.signKey && configToSave.signMethod !== 'NONE') {
+      configToSave.signKey = encryptPassword(configToSave.signKey)
+    }
+  }
+
+  editingChannel.config = JSON.stringify(configToSave)
   try {
     if (editingChannel.id) {
       await request.put('/alarm/channel', editingChannel)

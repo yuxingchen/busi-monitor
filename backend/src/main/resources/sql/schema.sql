@@ -1,6 +1,8 @@
 -- =============================================
 -- 大屏网格化编排 - 数据库表
 -- =============================================
+-- 创建数据库
+CREATE DATABASE IF NOT EXISTS `busi_monitor` DEFAULT CHARSET = utf8mb4;
 
 -- 大屏配置表
 CREATE TABLE IF NOT EXISTS `monitor_dashboard`
@@ -23,15 +25,15 @@ CREATE TABLE IF NOT EXISTS `monitor_dashboard`
 CREATE TABLE IF NOT EXISTS `monitor_dashboard_widget`
 (
     `id`             BIGINT PRIMARY KEY AUTO_INCREMENT,
-    `dashboard_id`   BIGINT          NOT NULL COMMENT '所属大屏ID',
+    `dashboard_id`   BIGINT NOT NULL COMMENT '所属大屏ID',
     `widget_type`    VARCHAR(20)     DEFAULT 'TASK' COMMENT '组件类型: TASK/WORKFLOW/CLOCK/TEXT/IMAGE',
-    `source_id`      BIGINT          COMMENT '关联的任务/工作流ID',
-    `title`          VARCHAR(100)    COMMENT '组件标题(覆盖默认)',
-    `grid_x`         INT             NOT NULL DEFAULT 0 COMMENT '网格起始X(0-based)',
-    `grid_y`         INT             NOT NULL DEFAULT 0 COMMENT '网格起始Y(0-based)',
+    `source_id`      BIGINT COMMENT '关联的任务/工作流ID',
+    `title`          VARCHAR(100) COMMENT '组件标题(覆盖默认)',
+    `grid_x`         INT    NOT NULL DEFAULT 0 COMMENT '网格起始X(0-based)',
+    `grid_y`         INT    NOT NULL DEFAULT 0 COMMENT '网格起始Y(0-based)',
     `grid_w`         INT             DEFAULT 4 COMMENT '占用宽度(网格数)',
     `grid_h`         INT             DEFAULT 3 COMMENT '占用高度(网格数)',
-    `display_config` JSON            COMMENT '显示配置(刷新频率/主题等)',
+    `display_config` JSON COMMENT '显示配置(刷新频率/主题等)',
     `z_index`        INT             DEFAULT 0 COMMENT '层级',
     `create_time`    DATETIME        DEFAULT CURRENT_TIMESTAMP,
     INDEX `idx_dashboard_id` (`dashboard_id`)
@@ -70,8 +72,6 @@ CREATE TABLE IF NOT EXISTS `sys_user`
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='系统用户';
 
--- 插入默认管理员账户 (密码: admin123)
--- INSERT IGNORE INTO `sys_user` (`username`, `password_hash`, `role`, `enabled`) VALUES ('admin', '$2a$10$wIp9iDdYOjyPftT1H1X2pu9jde6aVKxP7UAg.DZaQu5IcMbAXdXRe', 'ADMIN', 1);
 
 -- 2. 监控任务表
 CREATE TABLE IF NOT EXISTS `monitor_task`
@@ -206,16 +206,6 @@ CREATE TABLE IF NOT EXISTS `monitor_template`
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='监控模板';
 
--- -- 插入预置监控模板
--- INSERT INTO `monitor_template` (`name`, `category`, `sub_category`, `collect_type`, `collect_script`, `default_threshold`, `alarm_template`, `description`, `is_system`) VALUES
--- ('CPU使用率', 'BASIC', 'CPU', 'SSH_SCRIPT', 'top -bn1 | grep "Cpu(s)" | awk ''{print $2}'' | cut -d. -f1', '{"operator":">","value":50}', '${serverName}(${ip}) CPU使用率${value}%，超过阈值${threshold}%', 'CPU使用率监控', 1),
--- ('内存使用率', 'BASIC', 'MEMORY', 'SSH_SCRIPT', 'free | grep Mem | awk ''{printf("%.0f", $3/$2*100)}''', '{"operator":">","value":70}', '${serverName}(${ip}) 内存使用率${value}%，超过阈值${threshold}%', '内存使用率监控', 1),
--- ('磁盘使用率', 'BASIC', 'DISK', 'SSH_SCRIPT', 'df -h ${path} | tail -1 | awk ''{print $5}'' | tr -d ''%''', '{"operator":">","value":70}', '${serverName}(${ip}) 磁盘${path}使用率${value}%，超过阈值${threshold}%', '磁盘使用率监控', 1),
--- ('网络连通性', 'BASIC', 'NETWORK', 'SSH_SCRIPT', 'ping -c 3 ${target} > /dev/null 2>&1 && echo 1 || echo 0', '{"operator":"=","value":0}', '${serverName}(${ip}) 到${target}网络不通', '网络连通性检测', 1),
--- ('TCP连接数', 'BASIC', 'NETWORK', 'SSH_SCRIPT', 'netstat -an | grep ESTABLISHED | wc -l', '{"operator":">","value":7000}', '${serverName}(${ip}) TCP连接数${value}，超过阈值${threshold}', 'TCP连接数监控', 1),
--- ('端口探测', 'COMPONENT', 'PORT', 'SSH_SCRIPT', 'nc -v -w 3 -z ${target_ip} ${target_port} > /dev/null 2>&1 && echo 1 || echo 0', '{"operator":"=","value":0}', '${serverName}(${ip}) 端口${target_ip}:${target_port}不可达', '端口探测', 1),
--- ('HTTP可用性', 'APPLICATION', 'HTTP', 'SSH_SCRIPT', 'curl -o /dev/null -s -w "%{http_code}" ${url}', '{"operator":"!=","value":200}', '${serverName}(${ip}) HTTP请求${url}返回${value}，非200', 'HTTP可用性检测', 1),
--- ('应用日志错误', 'APPLICATION', 'LOG', 'SSH_SCRIPT', 'tail -100 ${log_path} | grep -c ERROR || echo 0', '{"operator":">","value":0}', '${serverName}(${ip}) 日志${log_path}发现${value}个ERROR', '应用日志错误检测', 1);
 
 -- 10. 服务器监控任务表（关联服务器与监控模板）
 CREATE TABLE IF NOT EXISTS `server_monitor_task`

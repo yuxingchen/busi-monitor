@@ -2,7 +2,9 @@ package com.monitor.backend.controller;
 
 import com.monitor.backend.batch.SqlBatchAnalyzer;
 import com.monitor.backend.common.ApiResponse;
-import com.monitor.backend.constant.WorkflowStepType;
+import com.monitor.backend.enums.WorkflowStepType;
+import com.monitor.backend.dto.workflow.WorkflowRequest;
+import com.monitor.backend.dto.workflow.WorkflowStepRequest;
 import com.monitor.backend.entity.Workflow;
 import com.monitor.backend.entity.WorkflowExecution;
 import com.monitor.backend.entity.WorkflowStep;
@@ -12,6 +14,7 @@ import com.monitor.backend.mapper.WorkflowExecutionMapper;
 import com.monitor.backend.mapper.WorkflowMapper;
 import com.monitor.backend.mapper.WorkflowStepMapper;
 import com.monitor.backend.service.WorkflowExecutorService;
+import com.monitor.backend.util.DateTimeUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -20,7 +23,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -75,17 +77,21 @@ public class WorkflowController {
     @Operation(summary = "创建工作流")
     @PostMapping
     @Transactional
-    public ApiResponse<Workflow> create(@RequestBody Workflow workflow) {
+    public ApiResponse<Workflow> create(@RequestBody WorkflowRequest request) {
+        Workflow workflow = convertToEntity(request);
+        List<WorkflowStep> steps = convertStepsToEntity(request.getSteps());
+        workflow.setSteps(steps);
+
         // 校验批处理SQL支持性
-        List<String> batchErrors = validateBatchSteps(workflow.getSteps());
+        List<String> batchErrors = validateBatchSteps(steps);
         if (!batchErrors.isEmpty()) {
             return ApiResponse.fail(ErrorCode.WORKFLOW_STEP_INVALID,
                     "以下步骤的SQL不支持批处理: " + String.join("; ", batchErrors));
         }
 
         log.info("创建工作流: name={}", workflow.getName());
-        workflow.setCreateTime(LocalDateTime.now());
-        workflow.setUpdateTime(LocalDateTime.now());
+        workflow.setCreateTime(DateTimeUtils.now());
+        workflow.setUpdateTime(DateTimeUtils.now());
         if (workflow.getIsActive() == null) {
             workflow.setIsActive(1);
         }
@@ -95,8 +101,8 @@ public class WorkflowController {
         workflowMapper.insert(workflow);
 
         // 保存步骤
-        if (workflow.getSteps() != null && !workflow.getSteps().isEmpty()) {
-            for (WorkflowStep step : workflow.getSteps()) {
+        if (!steps.isEmpty()) {
+            for (WorkflowStep step : steps) {
                 step.setWorkflowId(workflow.getId());
                 stepMapper.insert(step);
             }
@@ -110,14 +116,18 @@ public class WorkflowController {
     @Transactional
     public ApiResponse<Workflow> update(
             @Parameter(description = "工作流ID") @PathVariable Long id,
-            @RequestBody Workflow workflow) {
+            @RequestBody WorkflowRequest request) {
         Workflow existing = workflowMapper.findById(id);
         if (existing == null) {
             throw new BusinessException(ErrorCode.WORKFLOW_NOT_FOUND);
         }
 
+        Workflow workflow = convertToEntity(request);
+        List<WorkflowStep> steps = convertStepsToEntity(request.getSteps());
+        workflow.setSteps(steps);
+
         // 校验批处理SQL支持性
-        List<String> batchErrors = validateBatchSteps(workflow.getSteps());
+        List<String> batchErrors = validateBatchSteps(steps);
         if (!batchErrors.isEmpty()) {
             return ApiResponse.fail(ErrorCode.WORKFLOW_STEP_INVALID,
                     "以下步骤的SQL不支持批处理: " + String.join("; ", batchErrors));
@@ -125,7 +135,6 @@ public class WorkflowController {
 
         log.info("更新工作流: id={}", id);
         workflow.setId(id);
-        workflow.setUpdateTime(LocalDateTime.now());
         if (workflow.getIndexFields() == null || workflow.getIndexFields().isEmpty()) {
             workflow.setIndexFields(existing.getIndexFields());
         }
@@ -133,8 +142,8 @@ public class WorkflowController {
 
         // 删除旧步骤，插入新步骤
         stepMapper.deleteByWorkflowId(id);
-        if (workflow.getSteps() != null) {
-            for (WorkflowStep step : workflow.getSteps()) {
+        if (steps != null) {
+            for (WorkflowStep step : steps) {
                 step.setWorkflowId(id);
                 stepMapper.insert(step);
             }
@@ -262,5 +271,43 @@ public class WorkflowController {
             }
         }
         return errors;
+    }
+
+    /**
+     * 将工作流请求DTO转换为实体
+     */
+    private Workflow convertToEntity(WorkflowRequest request) {
+        Workflow workflow = new Workflow();
+        workflow.setId(request.getId());
+        workflow.setName(request.getName());
+        workflow.setDescription(request.getDescription());
+        workflow.setCronExpression(request.getCronExpression());
+        workflow.setTimeoutSeconds(request.getTimeoutSeconds());
+        workflow.setIndexFields(request.getIndexFields());
+        workflow.setIsActive(request.getIsActive());
+        return workflow;
+    }
+
+    /**
+     * 将工作流步骤请求DTO列表转换为实体列表
+     */
+    private List<WorkflowStep> convertStepsToEntity(List<WorkflowStepRequest> stepRequests) {
+        if (stepRequests == null) {
+            return new ArrayList<>();
+        }
+        List<WorkflowStep> steps = new ArrayList<>();
+        for (WorkflowStepRequest req : stepRequests) {
+            WorkflowStep step = new WorkflowStep();
+            step.setId(req.getId());
+            step.setName(req.getName());
+            step.setStepType(req.getStepType());
+            step.setStepOrder(req.getStepOrder());
+            step.setDatasourceId(req.getDatasourceId());
+            step.setSqlScript(req.getSqlScript());
+            step.setResultVariable(req.getResultVariable());
+            step.setBatchEnabled(req.getBatchEnabled());
+            steps.add(step);
+        }
+        return steps;
     }
 }

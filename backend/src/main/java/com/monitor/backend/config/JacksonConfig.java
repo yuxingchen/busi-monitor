@@ -1,5 +1,7 @@
 package com.monitor.backend.config;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -14,7 +16,9 @@ import java.time.format.DateTimeFormatter;
 
 /**
  * Jackson 全局配置
- * 统一日期时间格式为 yyyy-MM-dd HH:mm:ss
+ * - 统一日期时间格式为 yyyy-MM-dd HH:mm:ss
+ * - 忽略未知属性（反序列化时不报错）
+ * - 忽略空值属性（序列化时减少JSON体积）
  */
 @Configuration
 public class JacksonConfig {
@@ -38,6 +42,12 @@ public class JacksonConfig {
         
         // 禁用将日期写为时间戳
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        
+        // 反序列化时忽略未知属性（避免JSON中有多余字段时报错）
+        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        
+        // 序列化时忽略空值属性（减少JSON体积）
+        objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
         
         return objectMapper;
     }

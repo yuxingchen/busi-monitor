@@ -11,6 +11,7 @@ import com.monitor.backend.mapper.ServerAssetMapper;
 import com.monitor.backend.service.EncryptionService;
 import com.monitor.backend.service.SshExecutorService;
 import com.monitor.backend.service.TransmitEncryptionService;
+import com.monitor.backend.util.DateTimeUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -19,7 +20,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -192,7 +192,7 @@ public class ServerAssetController {
         boolean connected = sshExecutorService.testConnection(asset);
         
         // 更新状态
-        asset.setLastCheckTime(LocalDateTime.now());
+        asset.setLastCheckTime(DateTimeUtils.now());
         asset.setLastCheckStatus(connected ? "ONLINE" : "OFFLINE");
         assetMapper.updateStatus(asset);
         

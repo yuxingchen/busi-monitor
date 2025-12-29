@@ -1,7 +1,7 @@
 package com.monitor.backend.component;
 
 import com.monitor.backend.constant.BatchDefaults;
-import com.monitor.backend.constant.JoinType;
+import com.monitor.backend.enums.JoinType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;

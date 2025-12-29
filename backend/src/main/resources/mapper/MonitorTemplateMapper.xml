@@ -65,11 +65,21 @@
 
     <update id="update">
         UPDATE monitor_template
-        SET name = #{name}, category = #{category}, sub_category = #{subCategory},
-            collect_type = #{collectType}, collect_script = #{collectScript}, param_schema = #{paramSchema},
-            default_threshold = #{defaultThreshold}, default_cron = #{defaultCron},
-            alarm_template_id = #{alarmTemplateId}, description = #{description},
-            is_active = #{isActive}, sort_order = #{sortOrder}
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="category != null">category = #{category},</if>
+            <if test="subCategory != null">sub_category = #{subCategory},</if>
+            <if test="collectType != null">collect_type = #{collectType},</if>
+            <if test="collectScript != null">collect_script = #{collectScript},</if>
+            <if test="paramSchema != null">param_schema = #{paramSchema},</if>
+            <if test="defaultThreshold != null">default_threshold = #{defaultThreshold},</if>
+            <if test="defaultCron != null">default_cron = #{defaultCron},</if>
+            <if test="alarmTemplateId != null">alarm_template_id = #{alarmTemplateId},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="isActive != null">is_active = #{isActive},</if>
+            <if test="sortOrder != null">sort_order = #{sortOrder},</if>
+            update_time = NOW()
+        </set>
         WHERE id = #{id}
     </update>
 

@@ -1,42 +1,62 @@
 package com.monitor.backend.alarm.sender;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.monitor.backend.entity.AlarmChannel;
 import com.monitor.backend.entity.AlarmTemplate;
+import com.monitor.backend.enums.AlarmChannelType;
+import com.monitor.backend.service.TransmitEncryptionService;
+import com.monitor.backend.util.DateTimeUtils;
+import com.monitor.backend.util.MarkdownUtils;
+import lombok.Getter;
+import lombok.Setter;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springdoc.core.service.GenericParameterService;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Duration;
-import java.util.Map;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 
 /**
  * 短信告警发送器
  * <p>
- * 支持阿里云、腾讯云等主流短信平台
+ * 支持自定义 HTTP API 接口调用，支持占位符替换和签名计算
  * </p>
  */
 @Component
 public class SmsAlarmSender implements AlarmSender {
 
     private static final Logger logger = LoggerFactory.getLogger(SmsAlarmSender.class);
+    private static final DateTimeFormatter DATETIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final TransmitEncryptionService encryptionService;
+    private final GenericParameterService parameterBuilder;
 
-    public SmsAlarmSender(ObjectMapper objectMapper) {
+    public SmsAlarmSender(ObjectMapper objectMapper, TransmitEncryptionService encryptionService, GenericParameterService parameterBuilder) {
         this.objectMapper = objectMapper;
+        this.encryptionService = encryptionService;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
+        this.parameterBuilder = parameterBuilder;
     }
 
     @Override
-    public String getType() {
-        return "SMS";
+    public AlarmChannelType getType() {
+        return AlarmChannelType.SMS;
     }
 
     @Override
@@ -46,21 +66,15 @@ public class SmsAlarmSender implements AlarmSender {
             SmsConfig config = objectMapper.readValue(channel.getConfig(), SmsConfig.class);
 
             // 构建短信内容
-            String content = template != null && template.getContent() != null
+            String rawContent = template != null && template.getContent() != null
                     ? replaceVariables(template.getContent(), params)
                     : buildDefaultContent(params);
 
-            // 根据供应商发送短信
-            boolean success = switch (config.getProvider().toUpperCase()) {
-                case "ALIYUN" -> sendAliyunSms (config, content, params);
-                case "TENCENT" -> sendTencentSms (config, content, params);
-                default -> sendGenericSms (config, content);
-            };
+            // 清除 Markdown 格式
+            String content = MarkdownUtils.stripMarkdown(rawContent);
 
-            if (success) {
-                logger.info("短信告警发送成功: phones={}", config.getPhones());
-            }
-            return success;
+            // 发送短信
+            return sendSms(config, content);
 
         } catch (Exception e) {
             logger.error("短信告警发送异常: {}", e.getMessage(), e);
@@ -69,87 +83,149 @@ public class SmsAlarmSender implements AlarmSender {
     }
 
     /**
-     * 阿里云短信发送
-     * 使用阿里云 SMS SDK
+     * 发送短信
      */
-    private boolean sendAliyunSms(SmsConfig config, String content, Map<String, Object> params) {
-        try {
-            // 构建模板参数
-            String templateParam = objectMapper.writeValueAsString(Map.of(
-                    "taskName", params.getOrDefault("taskName", ""),
-                    "value", params.getOrDefault("value", ""),
-                    "threshold", params.getOrDefault("threshold", "")));
-
-            // 使用阿里云 SDK 发送
-            // 这里使用 HTTP API 方式简化实现
-            logger.info("阿里云短信发送: signName={}, templateCode={}, phones={}",
-                    config.getSignName(), config.getTemplateCode(), config.getPhones());
-
-            // TODO: 集成阿里云 SMS SDK
-            // Client client = createAliyunClient(config);
-            // SendSmsRequest request = new SendSmsRequest()
-            // .setPhoneNumbers(config.getPhones())
-            // .setSignName(config.getSignName())
-            // .setTemplateCode(config.getTemplateCode())
-            // .setTemplateParam(templateParam);
-            // client.sendSms(request);
-
-            logger.warn("阿里云短信暂未集成 SDK，请配置后使用");
-            return true;
-
-        } catch (Exception e) {
-            logger.error("阿里云短信发送失败: {}", e.getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * 腾讯云短信发送
-     */
-    private boolean sendTencentSms(SmsConfig config, String content, Map<String, Object> params) {
-        try {
-            logger.info("腾讯云短信发送: signName={}, templateId={}, phones={}",
-                    config.getSignName(), config.getTemplateCode(), config.getPhones());
-
-            // TODO: 集成腾讯云 SMS SDK
-            logger.warn("腾讯云短信暂未集成 SDK，请配置后使用");
-            return true;
-
-        } catch (Exception e) {
-            logger.error("腾讯云短信发送失败: {}", e.getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * 通用 HTTP API 短信发送
-     */
-    private boolean sendGenericSms(SmsConfig config, String content) {
+    private boolean sendSms(SmsConfig config, String content) {
         try {
             if (config.getApiUrl() == null || config.getApiUrl().isEmpty()) {
                 logger.warn("未配置短信 API URL");
                 return false;
             }
 
-            // 构建请求体
-            Map<String, Object> requestBody = Map.of(
-                    "phones", config.getPhones(),
-                    "content", content,
-                    "apiKey", config.getApiKey());
+            // 生成请求参数
+            String uuid = UUID.randomUUID().toString().replace("-", "");
+            String datetime = DateTimeUtils.now().format(DATETIME_FORMATTER);
+            String encodedContent = URLEncoder.encode(content, StandardCharsets.UTF_8);
+            Map<String, String> params = new HashMap<>();
+            params.put("content", content);
+            String encodeParams = URLEncoder.encode(objectMapper.writeValueAsString(params), StandardCharsets.UTF_8);
+
+            // 解密 signKey
+            String signKey = "";
+            if (config.getSignKey() != null && !config.getSignKey().isEmpty()) {
+                try {
+                    signKey = encryptionService.decrypt(config.getSignKey());
+                } catch (Exception e) {
+                    logger.warn("signKey 解密失败，使用原值: {}", e.getMessage());
+                    signKey = config.getSignKey();
+                }
+            }
+
+            // 构建占位符映射
+            Map<String, String> placeholders = new HashMap<>();
+            placeholders.put("uuid", uuid);
+            placeholders.put("phones", config.getPhones());
+            placeholders.put("datetime", datetime);
+            placeholders.put("content", content);
+            placeholders.put("encodeContent", encodedContent);
+            placeholders.put("encodeParam", encodeParams);
+            placeholders.put("signKey", signKey);
+
+            // 计算签名
+            String sign = calculateSign(config, placeholders);
+            placeholders.put("sign", sign);
+
+            // 解析并替换参数模板
+            String requestBody = resolveTemplate(config.getParamsTemplate(), placeholders);
+
+            logger.info("短信发送请求: url={}, phones={}", config.getApiUrl(), config.getPhones());
+            logger.debug("请求体: {}", requestBody);
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(config.getApiUrl()))
                     .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(requestBody)))
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                     .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            logger.info("短信发送响应: status={}, body={}", response.statusCode(), response.body());
             return response.statusCode() == 200;
 
         } catch (Exception e) {
-            logger.error("通用短信发送失败: {}", e.getMessage());
+            logger.error("短信发送失败: {}", e.getMessage(), e);
             return false;
         }
+    }
+
+    /**
+     * 计算签名
+     */
+    private String calculateSign(SmsConfig config, Map<String, String> placeholders) {
+        if (config.getSignMethod() == null || "NONE".equalsIgnoreCase(config.getSignMethod())) {
+            return "";
+        }
+        if (StringUtils.isEmpty(config.getSignFields())) {
+            return "";
+        }
+        List<String> signFields = List.of(config.getSignFields().split(","));
+        if (signFields.isEmpty()) {
+            return "";
+        }
+
+        // 按 signFields 顺序拼接字段值
+        StringBuilder signBuilder = new StringBuilder();
+        for (String field : signFields) {
+            String value = placeholders.getOrDefault(field, "");
+            signBuilder.append(value);
+        }
+
+        String signString = signBuilder.toString();
+        logger.debug("签名原串: {}", signString);
+
+        try {
+            return switch (config.getSignMethod().toUpperCase()) {
+                case "MD5" -> md5(signString);
+                case "SHA256" -> sha256(signString);
+                default -> signString;
+            };
+        } catch (Exception e) {
+            logger.error("签名计算失败: {}", e.getMessage());
+            return "";
+        }
+    }
+
+    /**
+     * 解析模板，替换占位符
+     */
+    private String resolveTemplate(String template, Map<String, String> placeholders) {
+        if (template == null || template.isEmpty()) {
+            return "{}";
+        }
+
+        String result = template;
+        for (Map.Entry<String, String> entry : placeholders.entrySet()) {
+            String placeholder = "${" + entry.getKey() + "}";
+            String value = entry.getValue() != null ? entry.getValue() : "";
+            result = result.replace(placeholder, value);
+        }
+        return result;
+    }
+
+    /**
+     * MD5 加密
+     */
+    private String md5(String input) throws Exception {
+        MessageDigest md = MessageDigest.getInstance("MD5");
+        byte[] digest = md.digest(input.getBytes(StandardCharsets.UTF_8));
+        return bytesToHex(digest);
+    }
+
+    /**
+     * SHA256 加密
+     */
+    private String sha256(String input) throws Exception {
+        MessageDigest md = MessageDigest.getInstance("SHA-256");
+        byte[] digest = md.digest(input.getBytes(StandardCharsets.UTF_8));
+        return bytesToHex(digest);
+    }
+
+    private String bytesToHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
     }
 
     private String buildDefaultContent(Map<String, Object> params) {
@@ -164,78 +240,16 @@ public class SmsAlarmSender implements AlarmSender {
     /**
      * 短信配置
      */
+    @Setter
+    @Getter
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class SmsConfig {
-        private String provider = "GENERIC"; // ALIYUN, TENCENT, GENERIC
-        private String accessKeyId;
-        private String accessKeySecret;
-        private String signName;
-        private String templateCode;
-        private String phones;
         private String apiUrl;
-        private String apiKey;
+        private String phones;
+        private String paramsTemplate;
+        private String signMethod;  // NONE, MD5, SHA256
+        private String signKey;     // 加密存储
+        private String signFields;  // 签名字段列表（按顺序）
 
-        public String getProvider() {
-            return provider;
-        }
-
-        public void setProvider(String provider) {
-            this.provider = provider;
-        }
-
-        public String getAccessKeyId() {
-            return accessKeyId;
-        }
-
-        public void setAccessKeyId(String accessKeyId) {
-            this.accessKeyId = accessKeyId;
-        }
-
-        public String getAccessKeySecret() {
-            return accessKeySecret;
-        }
-
-        public void setAccessKeySecret(String accessKeySecret) {
-            this.accessKeySecret = accessKeySecret;
-        }
-
-        public String getSignName() {
-            return signName;
-        }
-
-        public void setSignName(String signName) {
-            this.signName = signName;
-        }
-
-        public String getTemplateCode() {
-            return templateCode;
-        }
-
-        public void setTemplateCode(String templateCode) {
-            this.templateCode = templateCode;
-        }
-
-        public String getPhones() {
-            return phones;
-        }
-
-        public void setPhones(String phones) {
-            this.phones = phones;
-        }
-
-        public String getApiUrl() {
-            return apiUrl;
-        }
-
-        public void setApiUrl(String apiUrl) {
-            this.apiUrl = apiUrl;
-        }
-
-        public String getApiKey() {
-            return apiKey;
-        }
-
-        public void setApiKey(String apiKey) {
-            this.apiKey = apiKey;
-        }
     }
 }

@@ -2,6 +2,7 @@ package com.monitor.backend.alarm.sender;
 
 import com.monitor.backend.entity.AlarmChannel;
 import com.monitor.backend.entity.AlarmTemplate;
+import com.monitor.backend.enums.AlarmChannelType;
 
 import java.util.Map;
 
@@ -18,7 +19,7 @@ public interface AlarmSender {
      * 
      * @return 渠道类型，如 EMAIL, DINGTALK, SMS, ANNOUNCEMENT
      */
-    String getType();
+    AlarmChannelType getType();
 
     /**
      * 发送告警通知

@@ -59,10 +59,19 @@
 
     <update id="update">
         UPDATE server_asset
-        SET name = #{name}, ip = #{ip}, port = #{port}, username = #{username},
-            auth_type = #{authType}, password_encrypted = #{passwordEncrypted},
-            private_key_encrypted = #{privateKeyEncrypted}, group_id = #{groupId},
-            tags = #{tags}, is_active = #{isActive}
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="ip != null">ip = #{ip},</if>
+            <if test="port != null">port = #{port},</if>
+            <if test="username != null">username = #{username},</if>
+            <if test="authType != null">auth_type = #{authType},</if>
+            <if test="passwordEncrypted != null">password_encrypted = #{passwordEncrypted},</if>
+            <if test="privateKeyEncrypted != null">private_key_encrypted = #{privateKeyEncrypted},</if>
+            <if test="groupId != null">group_id = #{groupId},</if>
+            <if test="tags != null">tags = #{tags},</if>
+            <if test="isActive != null">is_active = #{isActive},</if>
+            update_time = NOW()
+        </set>
         WHERE id = #{id}
     </update>
 

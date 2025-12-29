@@ -18,7 +18,7 @@ public class AlarmTemplate {
     @Schema(description = "模板名称")
     private String name;
 
-    @Schema(description = "邮件主题")
+    @Schema(description = "标题")
     private String subject;
 
     @Schema(description = "模板内容（支持变量替换）")

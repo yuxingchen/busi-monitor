@@ -3,11 +3,12 @@ package com.monitor.backend.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.monitor.backend.alarm.AlarmContext;
 import com.monitor.backend.alarm.AlarmService;
-import com.monitor.backend.constant.CompareOperator;
+import com.monitor.backend.enums.CompareOperator;
 import com.monitor.backend.entity.MonitorRecord;
 import com.monitor.backend.entity.MonitorTask;
 import com.monitor.backend.mapper.MonitorRecordMapper;
 import com.monitor.backend.mapper.MonitorTaskMapper;
+import com.monitor.backend.util.DateTimeUtils;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -87,7 +88,7 @@ public class TaskMonitoringService {
         logger.info("Executing task: {}", task.getName());
         MonitorRecord record = new MonitorRecord();
         record.setTaskId(task.getId());
-        record.setExecutionTime(java.time.LocalDateTime.now());
+        record.setExecutionTime(DateTimeUtils.now());
 
         try {
             List<Map<String, Object>> resultSet;

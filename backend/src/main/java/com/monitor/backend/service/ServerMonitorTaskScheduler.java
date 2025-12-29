@@ -4,13 +4,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.monitor.backend.alarm.AlarmContext;
 import com.monitor.backend.alarm.AlarmService;
 import com.monitor.backend.constant.BatchDefaults;
-import com.monitor.backend.constant.CompareOperator;
+import com.monitor.backend.enums.CompareOperator;
 import com.monitor.backend.entity.MonitorTemplate;
 import com.monitor.backend.entity.ServerAsset;
 import com.monitor.backend.entity.ServerMonitorTask;
 import com.monitor.backend.mapper.MonitorTemplateMapper;
 import com.monitor.backend.mapper.ServerAssetMapper;
 import com.monitor.backend.mapper.ServerMonitorTaskMapper;
+import com.monitor.backend.util.DateTimeUtils;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,7 +19,6 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.scheduling.support.CronTrigger;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -143,7 +143,7 @@ public class ServerMonitorTaskScheduler {
             String output = sshExecutorService.executeScript(server, script);
 
             // 更新运行状态
-            task.setLastRunTime(LocalDateTime.now());
+            task.setLastRunTime(DateTimeUtils.now());
             task.setLastRunStatus("SUCCESS");
             task.setLastRunValue(output.trim());
             taskMapper.updateRunStatus(task);
@@ -155,7 +155,7 @@ public class ServerMonitorTaskScheduler {
 
         } catch (Exception e) {
             logger.error("服务器监控任务执行失败: {} - {}", task.getName(), e.getMessage());
-            task.setLastRunTime(LocalDateTime.now());
+            task.setLastRunTime(DateTimeUtils.now());
             task.setLastRunStatus("FAILED");
             task.setLastRunValue(e.getMessage());
             taskMapper.updateRunStatus(task);

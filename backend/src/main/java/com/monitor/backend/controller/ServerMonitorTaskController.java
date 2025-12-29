@@ -5,7 +5,8 @@ import com.monitor.backend.alarm.AlarmContext;
 import com.monitor.backend.alarm.AlarmService;
 import com.monitor.backend.common.ApiResponse;
 import com.monitor.backend.constant.BatchDefaults;
-import com.monitor.backend.constant.CompareOperator;
+import com.monitor.backend.enums.CompareOperator;
+import com.monitor.backend.dto.task.ServerMonitorTaskRequest;
 import com.monitor.backend.entity.MonitorTemplate;
 import com.monitor.backend.entity.ServerAsset;
 import com.monitor.backend.entity.ServerMonitorTask;
@@ -16,6 +17,7 @@ import com.monitor.backend.mapper.ServerAssetMapper;
 import com.monitor.backend.mapper.ServerMonitorTaskMapper;
 import com.monitor.backend.service.ServerMonitorTaskScheduler;
 import com.monitor.backend.service.SshExecutorService;
+import com.monitor.backend.util.DateTimeUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -23,7 +25,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -90,8 +91,10 @@ public class ServerMonitorTaskController {
 
     @Operation(summary = "添加监控任务")
     @PostMapping
-    public ApiResponse<Map<String, Object>> add(@RequestBody ServerMonitorTask task) {
-        log.info("添加服务器监控任务: serverId={}", task.getServerId());
+    public ApiResponse<Map<String, Object>> add(@RequestBody ServerMonitorTaskRequest request) {
+        log.info("添加服务器监控任务: serverId={}", request.getServerId());
+
+        ServerMonitorTask task = convertToEntity(request);
         task.setIsActive(1);
 
         // 如果使用模板且未指定脚本，从模板获取
@@ -151,8 +154,9 @@ public class ServerMonitorTaskController {
 
     @Operation(summary = "更新监控任务")
     @PutMapping
-    public ApiResponse<Void> update(@RequestBody ServerMonitorTask task) {
-        log.info("更新服务器监控任务: id={}", task.getId());
+    public ApiResponse<Void> update(@RequestBody ServerMonitorTaskRequest request) {
+        log.info("更新服务器监控任务: id={}", request.getId());
+        ServerMonitorTask task = convertToEntity(request);
         taskMapper.update(task);
         taskScheduler.refreshTask(task.getId());
         return ApiResponse.ok("更新成功", null);
@@ -211,15 +215,19 @@ public class ServerMonitorTaskController {
 
         try {
             String script = task.getCollectScript();
+            // 动态替换所有参数
             if (task.getParams() != null && !task.getParams().isEmpty()) {
-                script = script.replace("${port}", extractParam(task.getParams(), "port", "80"));
-                script = script.replace("${path}", extractParam(task.getParams(), "path", "/"));
-                script = script.replace("${log_path}", extractParam(task.getParams(), "log_path", "/var/log/app.log"));
+                @SuppressWarnings("unchecked")
+                Map<String, Object> params = objectMapper.readValue(task.getParams(), Map.class);
+                for (Map.Entry<String, Object> entry : params.entrySet()) {
+                    script = script.replace("${" + entry.getKey() + "}",
+                            entry.getValue() != null ? entry.getValue().toString() : "");
+                }
             }
 
             String output = sshExecutorService.executeScript(server, script);
 
-            task.setLastRunTime(LocalDateTime.now());
+            task.setLastRunTime(DateTimeUtils.now());
             task.setLastRunStatus("SUCCESS");
             task.setLastRunValue(output.trim());
             taskMapper.updateRunStatus(task);
@@ -231,7 +239,7 @@ public class ServerMonitorTaskController {
             data.put("runTime", task.getLastRunTime());
             return ApiResponse.ok("执行成功", data);
         } catch (Exception e) {
-            task.setLastRunTime(LocalDateTime.now());
+            task.setLastRunTime(DateTimeUtils.now());
             task.setLastRunStatus("FAILED");
             task.setLastRunValue(e.getMessage());
             taskMapper.updateRunStatus(task);
@@ -290,6 +298,16 @@ public class ServerMonitorTaskController {
                 Map<String, Object> extraParams = new HashMap<>();
                 extraParams.put("serverName", server.getName());
                 extraParams.put("ip", server.getIp());
+                // 将任务参数也加入 extraParams，用于告警模板变量替换
+                if (task.getParams() != null && !task.getParams().isEmpty()) {
+                    try {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> taskParams = objectMapper.readValue(task.getParams(), Map.class);
+                        extraParams.putAll(taskParams);
+                    } catch (Exception ex) {
+                        log.warn("解析任务参数失败: {}", ex.getMessage());
+                    }
+                }
                 context.setExtraParams(extraParams);
 
                 if (task.getAlarmChannels() != null && !task.getAlarmChannels().isEmpty()) {
@@ -306,7 +324,7 @@ public class ServerMonitorTaskController {
                 alarmService.resolveAlarm(task.getId(), "SERVER_MONITOR");
             }
         } catch (Exception e) {
-            log.error("服务器告警检查失败: {}", e.getMessage());
+            log.error("服务器告警检查失败: {}", e.getMessage(), e);
         }
     }
 
@@ -322,30 +340,23 @@ public class ServerMonitorTaskController {
         }
     }
 
-
-
-    private String extractParam(String paramsJson, String key, String defaultValue) {
-        try {
-            if (paramsJson.contains("\"" + key + "\"")) {
-                int start = paramsJson.indexOf("\"" + key + "\"");
-                int colonPos = paramsJson.indexOf(":", start);
-                int valueStart = colonPos + 1;
-                while (valueStart < paramsJson.length() &&
-                        (paramsJson.charAt(valueStart) == ' ' || paramsJson.charAt(valueStart) == '"')) {
-                    valueStart++;
-                }
-                int valueEnd = valueStart;
-                while (valueEnd < paramsJson.length() &&
-                        paramsJson.charAt(valueEnd) != '"' &&
-                        paramsJson.charAt(valueEnd) != ',' &&
-                        paramsJson.charAt(valueEnd) != '}') {
-                    valueEnd++;
-                }
-                return paramsJson.substring(valueStart, valueEnd);
-            }
-        } catch (Exception e) {
-            // ignore
-        }
-        return defaultValue;
+    /**
+     * 将请求DTO转换为实体
+     */
+    private ServerMonitorTask convertToEntity(ServerMonitorTaskRequest request) {
+        ServerMonitorTask task = new ServerMonitorTask();
+        task.setId(request.getId());
+        task.setName(request.getName());
+        task.setServerId(request.getServerId());
+        task.setTemplateId(request.getTemplateId());
+        task.setCollectScript(request.getCollectScript());
+        task.setParams(request.getParams());
+        task.setThresholdRule(request.getThresholdRule());
+        task.setCronExpression(request.getCronExpression());
+        task.setAlarmChannels(request.getAlarmChannels());
+        task.setAlarmTemplateId(request.getAlarmTemplateId());
+        task.setIsActive(request.getIsActive());
+        return task;
     }
+
 }

@@ -4,7 +4,7 @@ import com.monitor.backend.cache.CacheStrategy;
 import com.monitor.backend.component.WorkflowSqlParser;
 import com.monitor.backend.constant.BatchDefaults;
 import com.monitor.backend.constant.PlaceholderPrefix;
-import com.monitor.backend.constant.WorkflowStepType;
+import com.monitor.backend.enums.WorkflowStepType;
 import com.monitor.backend.entity.WorkflowStep;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

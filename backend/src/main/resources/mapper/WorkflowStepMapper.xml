@@ -34,7 +34,8 @@
     </select>
 
     <select id="findById" resultMap="BaseResultMap">
-        SELECT <include refid="Base_Column_List"/>
+        SELECT
+        <include refid="Base_Column_List"/>
         FROM monitor_workflow_step
         WHERE id = #{id}
     </select>
@@ -50,11 +51,22 @@
 
     <update id="update">
         UPDATE monitor_workflow_step
-        SET step_order = #{stepOrder}, name = #{name}, step_type = #{stepType},
-            datasource_id = #{datasourceId}, sql_script = #{sqlScript}, result_variable = #{resultVariable},
-            config = #{config}, position_x = #{positionX}, position_y = #{positionY},
-            batch_enabled = #{batchEnabled}, id_column = #{idColumn}, partition_count = #{partitionCount},
-            chunk_size = #{chunkSize}, cache_strategy = #{cacheStrategy}
+        <set>
+            <if test="stepOrder != null">step_order = #{stepOrder},</if>
+            <if test="name != null">name = #{name},</if>
+            <if test="stepType != null">step_type = #{stepType},</if>
+            <if test="datasourceId != null">datasource_id = #{datasourceId},</if>
+            <if test="sqlScript != null">sql_script = #{sqlScript},</if>
+            <if test="resultVariable != null">result_variable = #{resultVariable},</if>
+            <if test="config != null">config = #{config},</if>
+            <if test="positionX != null">position_x = #{positionX},</if>
+            <if test="positionY != null">position_y = #{positionY},</if>
+            <if test="batchEnabled != null">batch_enabled = #{batchEnabled},</if>
+            <if test="idColumn != null">id_column = #{idColumn},</if>
+            <if test="partitionCount != null">partition_count = #{partitionCount},</if>
+            <if test="chunkSize != null">chunk_size = #{chunkSize},</if>
+            <if test="cacheStrategy != null">cache_strategy = #{cacheStrategy},</if>
+        </set>
         WHERE id = #{id}
     </update>
 

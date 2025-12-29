@@ -3,6 +3,7 @@ package com.monitor.backend.alarm.sender;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.monitor.backend.entity.AlarmChannel;
 import com.monitor.backend.entity.AlarmTemplate;
+import com.monitor.backend.enums.AlarmChannelType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -35,8 +36,8 @@ public class WeChatAlarmSender implements AlarmSender {
     }
 
     @Override
-    public String getType() {
-        return "WECHAT";
+    public AlarmChannelType getType() {
+        return AlarmChannelType.WECHAT;
     }
 
     @Override

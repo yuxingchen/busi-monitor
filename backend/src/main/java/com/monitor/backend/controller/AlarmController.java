@@ -3,6 +3,8 @@ package com.monitor.backend.controller;
 import com.monitor.backend.alarm.AlarmService;
 import com.monitor.backend.common.ApiResponse;
 import com.monitor.backend.common.PageResult;
+import com.monitor.backend.dto.alarm.AlarmChannelRequest;
+import com.monitor.backend.dto.alarm.AlarmTemplateRequest;
 import com.monitor.backend.entity.AlarmActive;
 import com.monitor.backend.entity.AlarmChannel;
 import com.monitor.backend.entity.AlarmHistory;
@@ -12,6 +14,7 @@ import com.monitor.backend.exception.ErrorCode;
 import com.monitor.backend.mapper.AlarmChannelMapper;
 import com.monitor.backend.mapper.AlarmHistoryMapper;
 import com.monitor.backend.mapper.AlarmTemplateMapper;
+import com.monitor.backend.util.DateTimeUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -19,7 +22,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -40,9 +42,9 @@ public class AlarmController {
     private final AlarmService alarmService;
 
     public AlarmController(AlarmChannelMapper channelMapper,
-            AlarmTemplateMapper templateMapper,
-            AlarmHistoryMapper historyMapper,
-            AlarmService alarmService) {
+                           AlarmTemplateMapper templateMapper,
+                           AlarmHistoryMapper historyMapper,
+                           AlarmService alarmService) {
         this.channelMapper = channelMapper;
         this.templateMapper = templateMapper;
         this.historyMapper = historyMapper;
@@ -103,19 +105,20 @@ public class AlarmController {
 
     @Operation(summary = "添加告警渠道")
     @PostMapping("/channel")
-    public ApiResponse<Void> addChannel(@RequestBody AlarmChannel channel) {
-        log.info("添加告警渠道: name={}, type={}", channel.getName(), channel.getType());
-        channel.setCreateTime(LocalDateTime.now());
-        channel.setUpdateTime(LocalDateTime.now());
+    public ApiResponse<Void> addChannel(@RequestBody AlarmChannelRequest request) {
+        log.info("添加告警渠道: name={}, type={}", request.getName(), request.getType());
+        AlarmChannel channel = convertToChannelEntity(request);
+        channel.setCreateTime(DateTimeUtils.now());
+        channel.setUpdateTime(DateTimeUtils.now());
         channelMapper.insert(channel);
         return ApiResponse.ok("添加成功", null);
     }
 
     @Operation(summary = "更新告警渠道")
     @PutMapping("/channel")
-    public ApiResponse<Void> updateChannel(@RequestBody AlarmChannel channel) {
-        log.info("更新告警渠道: id={}", channel.getId());
-        channel.setUpdateTime(LocalDateTime.now());
+    public ApiResponse<Void> updateChannel(@RequestBody AlarmChannelRequest request) {
+        log.info("更新告警渠道: id={}", request.getId());
+        AlarmChannel channel = convertToChannelEntity(request);
         channelMapper.update(channel);
         return ApiResponse.ok("更新成功", null);
     }
@@ -148,19 +151,20 @@ public class AlarmController {
 
     @Operation(summary = "添加告警模板")
     @PostMapping("/template")
-    public ApiResponse<Void> addTemplate(@RequestBody AlarmTemplate template) {
-        log.info("添加告警模板: name={}", template.getName());
-        template.setCreateTime(LocalDateTime.now());
-        template.setUpdateTime(LocalDateTime.now());
+    public ApiResponse<Void> addTemplate(@RequestBody AlarmTemplateRequest request) {
+        log.info("添加告警模板: name={}", request.getName());
+        AlarmTemplate template = convertToTemplateEntity(request);
+        template.setCreateTime(DateTimeUtils.now());
+        template.setUpdateTime(DateTimeUtils.now());
         templateMapper.insert(template);
         return ApiResponse.ok("添加成功", null);
     }
 
     @Operation(summary = "更新告警模板")
     @PutMapping("/template")
-    public ApiResponse<Void> updateTemplate(@RequestBody AlarmTemplate template) {
-        log.info("更新告警模板: id={}", template.getId());
-        template.setUpdateTime(LocalDateTime.now());
+    public ApiResponse<Void> updateTemplate(@RequestBody AlarmTemplateRequest request) {
+        log.info("更新告警模板: id={}", request.getId());
+        AlarmTemplate template = convertToTemplateEntity(request);
         templateMapper.update(template);
         return ApiResponse.ok("更新成功", null);
     }
@@ -187,11 +191,11 @@ public class AlarmController {
     public ApiResponse<PageResult<AlarmHistory>> getHistoryPage(
             @Parameter(description = "页码") @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "每页条数") @RequestParam(defaultValue = "20") int pageSize) {
-        
+
         com.github.pagehelper.PageHelper.startPage(page, pageSize);
         List<AlarmHistory> list = historyMapper.findAll();
         com.github.pagehelper.PageInfo<AlarmHistory> pageInfo = new com.github.pagehelper.PageInfo<>(list);
-        
+
         return ApiResponse.ok(PageResult.of(list, pageInfo.getTotal(), page, pageSize));
     }
 
@@ -201,5 +205,32 @@ public class AlarmController {
             @PathVariable Long taskId,
             @Parameter(description = "条数限制") @RequestParam(defaultValue = "50") int limit) {
         return ApiResponse.ok(historyMapper.findByTaskId(taskId, limit));
+    }
+
+    /**
+     * 将渠道请求DTO转换为实体
+     */
+    private AlarmChannel convertToChannelEntity(AlarmChannelRequest request) {
+        AlarmChannel channel = new AlarmChannel();
+        channel.setId(request.getId());
+        channel.setName(request.getName());
+        channel.setType(request.getType());
+        channel.setConfig(request.getConfig());
+        channel.setIsActive(request.getIsActive());
+        return channel;
+    }
+
+    /**
+     * 将模板请求DTO转换为实体
+     */
+    private AlarmTemplate convertToTemplateEntity(AlarmTemplateRequest request) {
+        AlarmTemplate template = new AlarmTemplate();
+        template.setId(request.getId());
+        template.setName(request.getName());
+        template.setSubject(request.getSubject());
+        template.setContentType(request.getContentType());
+        template.setContent(request.getContent());
+        template.setIsDefault(request.getIsDefault());
+        return template;
     }
 }

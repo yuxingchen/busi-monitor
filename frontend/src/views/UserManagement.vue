@@ -143,7 +143,8 @@ const loadUsers = async () => {
                 size: pageSize.value
             }
         })
-        if (res.success) {
+        console.log(res)
+        if (res.data) {
             users.value = res.data
             total.value = res.total
         } else {

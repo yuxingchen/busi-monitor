@@ -48,9 +48,17 @@
 
     <update id="update">
         UPDATE monitor_dashboard_widget
-        SET widget_type = #{widgetType}, source_id = #{sourceId}, title = #{title},
-            grid_x = #{gridX}, grid_y = #{gridY}, grid_w = #{gridW}, grid_h = #{gridH},
-            display_config = #{displayConfig}, z_index = #{zIndex}
+        <set>
+            <if test="widgetType != null">widget_type = #{widgetType},</if>
+            <if test="sourceId != null">source_id = #{sourceId},</if>
+            <if test="title != null">title = #{title},</if>
+            <if test="gridX != null">grid_x = #{gridX},</if>
+            <if test="gridY != null">grid_y = #{gridY},</if>
+            <if test="gridW != null">grid_w = #{gridW},</if>
+            <if test="gridH != null">grid_h = #{gridH},</if>
+            <if test="displayConfig != null">display_config = #{displayConfig},</if>
+            <if test="zIndex != null">z_index = #{zIndex},</if>
+        </set>
         WHERE id = #{id}
     </update>
 

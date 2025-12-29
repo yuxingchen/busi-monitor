@@ -1,7 +1,9 @@
 package com.monitor.backend.alarm;
 
 import com.monitor.backend.alarm.sender.AlarmSender;
-import com.monitor.backend.constant.CompareOperator;
+import com.monitor.backend.enums.AlarmLevel;
+import com.monitor.backend.enums.AlarmStatus;
+import com.monitor.backend.enums.CompareOperator;
 import com.monitor.backend.entity.AlarmActive;
 import com.monitor.backend.entity.AlarmChannel;
 import com.monitor.backend.entity.AlarmHistory;
@@ -10,6 +12,7 @@ import com.monitor.backend.mapper.AlarmActiveMapper;
 import com.monitor.backend.mapper.AlarmChannelMapper;
 import com.monitor.backend.mapper.AlarmHistoryMapper;
 import com.monitor.backend.mapper.AlarmTemplateMapper;
+import com.monitor.backend.util.DateTimeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -34,7 +37,7 @@ public class AlarmService {
     /**
      * 默认抑制时间（分钟）
      */
-    private static final int DEFAULT_SUPPRESS_MINUTES = 30;
+    private static final int DEFAULT_SUPPRESS_MINUTES = 5;
 
     private final List<AlarmSender> senders;
     private final AlarmActiveMapper activeMapper;
@@ -78,7 +81,7 @@ public class AlarmService {
             // 更新已存在的告警
             alarm.setTriggerValue(context.getCurrentValue());
             alarm.setThresholdValue(context.getThresholdValue());
-            alarm.setLastTriggerTime(LocalDateTime.now());
+            alarm.setLastTriggerTime(DateTimeUtils.now());
             alarm.setTriggerCount(alarm.getTriggerCount() + 1);
             alarm.setMessage(buildMessage(context));
             activeMapper.update(alarm);
@@ -104,9 +107,9 @@ public class AlarmService {
     public void resolveAlarm(Long taskId, String taskType) {
         AlarmActive alarm = activeMapper.findByTaskAndType(taskId, taskType);
         // 同时处理 FIRING 和 ACKNOWLEDGED 状态的告警
-        if (alarm != null && !"RESOLVED".equals(alarm.getStatus())) {
-            alarm.setStatus("RESOLVED");
-            alarm.setResolveTime(LocalDateTime.now());
+        if (alarm != null && !AlarmStatus.RESOLVED.name().equals(alarm.getStatus())) {
+            alarm.setStatus(AlarmStatus.RESOLVED.name());
+            alarm.setResolveTime(DateTimeUtils.now());
             activeMapper.update(alarm);
 
             // 广播恢复通知
@@ -120,10 +123,10 @@ public class AlarmService {
      */
     public void acknowledgeAlarm(Long alarmId, String acknowledgeBy) {
         AlarmActive alarm = activeMapper.findById(alarmId);
-        if (alarm != null && "FIRING".equals(alarm.getStatus())) {
-            alarm.setStatus("ACKNOWLEDGED");
+        if (alarm != null && AlarmStatus.FIRING.name().equals(alarm.getStatus())) {
+            alarm.setStatus(AlarmStatus.ACKNOWLEDGED.name());
             alarm.setAcknowledgeBy(acknowledgeBy);
-            alarm.setAcknowledgeTime(LocalDateTime.now());
+            alarm.setAcknowledgeTime(DateTimeUtils.now());
             activeMapper.update(alarm);
 
             // 广播确认通知
@@ -138,8 +141,8 @@ public class AlarmService {
     public void suppressAlarm(Long alarmId, int minutes) {
         AlarmActive alarm = activeMapper.findById(alarmId);
         if (alarm != null) {
-            alarm.setStatus("SUPPRESSED");
-            alarm.setSuppressedUntil(LocalDateTime.now().plusMinutes(minutes));
+            alarm.setStatus(AlarmStatus.SUPPRESSED.name());
+            alarm.setSuppressedUntil(DateTimeUtils.nowPlusMinutes(minutes));
             activeMapper.update(alarm);
             logger.info("告警已抑制: id={}, until={}", alarmId, alarm.getSuppressedUntil());
         }
@@ -161,8 +164,8 @@ public class AlarmService {
         List<AlarmActive> alarms = activeMapper.findNeedEscalation(30);
         for (AlarmActive alarm : alarms) {
             // 升级告警级别
-            if ("WARNING".equals(alarm.getLevel())) {
-                alarm.setLevel("CRITICAL");
+            if (AlarmLevel.WARNING.name().equals(alarm.getLevel())) {
+                alarm.setLevel(AlarmLevel.CRITICAL.name());
                 activeMapper.update(alarm);
                 logger.warn("告警已升级: id={}, newLevel=CRITICAL", alarm.getId());
 
@@ -181,11 +184,11 @@ public class AlarmService {
         alarm.setTriggerType(context.getTriggerType());
         alarm.setTriggerValue(context.getCurrentValue());
         alarm.setThresholdValue(context.getThresholdValue());
-        alarm.setFirstTriggerTime(LocalDateTime.now());
-        alarm.setLastTriggerTime(LocalDateTime.now());
+        alarm.setFirstTriggerTime(DateTimeUtils.now());
+        alarm.setLastTriggerTime(DateTimeUtils.now());
         alarm.setTriggerCount(1);
-        alarm.setStatus("FIRING");
-        alarm.setLevel(context.getLevel() != null ? context.getLevel() : "WARNING");
+        alarm.setStatus(AlarmStatus.FIRING.name());
+        alarm.setLevel(AlarmLevel.fromString(context.getLevel()).name());
         alarm.setMessage(buildMessage(context));
         return alarm;
     }
@@ -225,7 +228,7 @@ public class AlarmService {
         result = result.replace("${taskId}", context.getTaskId() != null ? context.getTaskId().toString() : "");
         result = result.replace("${operator}", context.getOperator() != null ? context.getOperator() : CompareOperator.GREATER_THAN.getSymbol());
         result = result.replace("${triggerType}", context.getTriggerType() != null ? context.getTriggerType() : "");
-        result = result.replace("${level}", context.getLevel() != null ? context.getLevel() : "WARNING");
+        result = result.replace("${level}", AlarmLevel.fromString(context.getLevel()).name());
 
         // 替换额外参数
         if (context.getExtraParams() != null) {
@@ -240,19 +243,19 @@ public class AlarmService {
 
     private boolean shouldSuppress(AlarmActive alarm) {
         // 如果处于抑制状态且未过期
-        if ("SUPPRESSED".equals(alarm.getStatus())) {
-            if (alarm.getSuppressedUntil() != null && alarm.getSuppressedUntil().isAfter(LocalDateTime.now())) {
+        if (AlarmStatus.SUPPRESSED.name().equals(alarm.getStatus())) {
+            if (alarm.getSuppressedUntil() != null && alarm.getSuppressedUntil().isAfter(DateTimeUtils.now())) {
                 return true;
             }
             // 抑制已过期，恢复为 FIRING
-            alarm.setStatus("FIRING");
+            alarm.setStatus(AlarmStatus.FIRING.name());
             activeMapper.update(alarm);
         }
 
-        // 默认抑制逻辑：同一告警30分钟内只发送一次
+        // 默认抑制逻辑：同一告警5分钟内只发送一次
         if (alarm.getTriggerCount() > 1) {
             LocalDateTime suppressUntil = alarm.getFirstTriggerTime().plusMinutes(DEFAULT_SUPPRESS_MINUTES);
-            return LocalDateTime.now().isBefore(suppressUntil);
+            return DateTimeUtils.now().isBefore(suppressUntil);
         }
 
         return false;
@@ -283,26 +286,22 @@ public class AlarmService {
             logger.warn("未找到发送器: type={}", channel.getType());
             return;
         }
-
         // 从 context 获取告警模板（业务调用时必须传入模板ID）
         AlarmTemplate template = null;
         if (context.getAlarmTemplateId() != null) {
             template = templateMapper.findById(context.getAlarmTemplateId());
         }
-
         // 构建参数
         Map<String, Object> params = buildParams(alarm, context);
-
         // 发送通知
         boolean success = sender.send(channel, template, params);
-
         // 记录历史
         saveHistory(alarm, channel, success, context);
     }
 
     private AlarmSender findSender(String type) {
         for (AlarmSender sender : senders) {
-            if (sender.getType().equalsIgnoreCase(type)) {
+            if (sender.getType().name().equalsIgnoreCase(type)) {
                 return sender;
             }
         }
@@ -317,7 +316,7 @@ public class AlarmService {
         params.put("taskName", context.getTaskName());
         params.put("value", context.getCurrentValue());
         params.put("threshold", context.getThresholdValue());
-        params.put("time", LocalDateTime.now().toString());
+        params.put("time", DateTimeUtils.now().toString());
         params.put("triggerType", context.getTriggerType());
         params.put("level", alarm.getLevel());
 
@@ -332,13 +331,12 @@ public class AlarmService {
         AlarmHistory history = new AlarmHistory();
         history.setTaskId(alarm.getTaskId());
         history.setChannelId(channel.getId());
-        history.setTriggerTime(LocalDateTime.now());
+        history.setTriggerTime(DateTimeUtils.now());
         history.setTriggerType(alarm.getTriggerType());
         history.setTriggerValue(alarm.getTriggerValue());
         history.setThresholdValue(alarm.getThresholdValue());
         history.setMessage(alarm.getMessage());
         history.setIsSuccess(success ? 1 : 0);
-
         historyMapper.insert(history);
     }
 }

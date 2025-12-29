@@ -1,12 +1,14 @@
 package com.monitor.backend.controller;
 
 import com.monitor.backend.common.ApiResponse;
+import com.monitor.backend.dto.task.MonitorTaskRequest;
 import com.monitor.backend.entity.MonitorTask;
 import com.monitor.backend.exception.BusinessException;
 import com.monitor.backend.exception.ErrorCode;
 import com.monitor.backend.mapper.MonitorTaskMapper;
 import com.monitor.backend.service.DynamicSqlExecutor;
 import com.monitor.backend.service.TaskMonitoringService;
+import com.monitor.backend.util.DateTimeUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -14,7 +16,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -60,10 +61,11 @@ public class TaskController {
 
     @Operation(summary = "添加任务")
     @PostMapping
-    public ApiResponse<MonitorTask> add(@RequestBody MonitorTask task) {
-        log.info("添加监控任务: name={}", task.getName());
-        task.setCreateTime(LocalDateTime.now());
-        task.setUpdateTime(LocalDateTime.now());
+    public ApiResponse<MonitorTask> add(@RequestBody MonitorTaskRequest request) {
+        log.info("添加监控任务: name={}", request.getName());
+        MonitorTask task = convertToEntity(request);
+        task.setCreateTime(DateTimeUtils.now());
+        task.setUpdateTime(DateTimeUtils.now());
         taskMapper.insert(task);
         monitoringService.refreshTask(task.getId());
         return ApiResponse.ok("添加成功", task);
@@ -71,9 +73,9 @@ public class TaskController {
 
     @Operation(summary = "更新任务")
     @PutMapping
-    public ApiResponse<Void> update(@RequestBody MonitorTask task) {
-        log.info("更新监控任务: id={}", task.getId());
-        task.setUpdateTime(LocalDateTime.now());
+    public ApiResponse<Void> update(@RequestBody MonitorTaskRequest request) {
+        log.info("更新监控任务: id={}", request.getId());
+        MonitorTask task = convertToEntity(request);
         taskMapper.update(task);
         monitoringService.refreshTask(task.getId());
         return ApiResponse.ok("更新成功", null);
@@ -119,5 +121,20 @@ public class TaskController {
             log.error("任务执行失败: id={}", id, e);
             throw new BusinessException(ErrorCode.TASK_EXECUTE_FAILED, "执行失败: " + e.getMessage());
         }
+    }
+
+    /**
+     * 将请求DTO转换为实体
+     */
+    private MonitorTask convertToEntity(MonitorTaskRequest request) {
+        MonitorTask task = new MonitorTask();
+        task.setId(request.getId());
+        task.setName(request.getName());
+        task.setDatasourceId(request.getDatasourceId());
+        task.setSqlScript(request.getSqlQuery());
+        task.setCronExpression(request.getCronExpression());
+        task.setAlarmThresholdRule(request.getThresholdRule());
+        task.setIsActive(request.getIsActive());
+        return task;
     }
 }

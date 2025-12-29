@@ -48,9 +48,16 @@
 
     <update id="update">
         UPDATE monitor_dashboard
-        SET name = #{name}, grid_cols = #{gridCols}, grid_rows = #{gridRows},
-            cell_height = #{cellHeight}, background_config = #{backgroundConfig},
-            is_default = #{isDefault}, is_active = #{isActive}
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="gridCols != null">grid_cols = #{gridCols},</if>
+            <if test="gridRows != null">grid_rows = #{gridRows},</if>
+            <if test="cellHeight != null">cell_height = #{cellHeight},</if>
+            <if test="backgroundConfig != null">background_config = #{backgroundConfig},</if>
+            <if test="isDefault != null">is_default = #{isDefault},</if>
+            <if test="isActive != null">is_active = #{isActive},</if>
+            update_time = NOW()
+        </set>
         WHERE id = #{id}
     </update>
 

@@ -66,31 +66,30 @@
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO alarm_active(
-            task_id, task_type, trigger_type, trigger_value, threshold_value,
-            first_trigger_time, last_trigger_time, trigger_count, status, level,
-            message, create_time, update_time
-        ) VALUES (
-            #{taskId}, #{taskType}, #{triggerType}, #{triggerValue}, #{thresholdValue},
-            #{firstTriggerTime}, #{lastTriggerTime}, #{triggerCount}, #{status}, #{level},
-            #{message}, NOW(), NOW()
-        )
+        INSERT INTO alarm_active(task_id, task_type, trigger_type, trigger_value, threshold_value,
+                                 first_trigger_time, last_trigger_time, trigger_count, status, level,
+                                 message, create_time, update_time)
+        VALUES (#{taskId}, #{taskType}, #{triggerType}, #{triggerValue}, #{thresholdValue},
+                #{firstTriggerTime}, #{lastTriggerTime}, #{triggerCount}, #{status}, #{level},
+                #{message}, NOW(), NOW())
     </insert>
 
     <update id="update">
         UPDATE alarm_active
-        SET trigger_value = #{triggerValue},
-            threshold_value = #{thresholdValue},
-            last_trigger_time = #{lastTriggerTime},
-            trigger_count = #{triggerCount},
-            status = #{status},
-            level = #{level},
-            acknowledge_by = #{acknowledgeBy},
-            acknowledge_time = #{acknowledgeTime},
-            resolve_time = #{resolveTime},
-            suppressed_until = #{suppressedUntil},
-            message = #{message},
+        <set>
+            <if test="triggerValue != null">trigger_value = #{triggerValue},</if>
+            <if test="thresholdValue != null">threshold_value = #{thresholdValue},</if>
+            <if test="lastTriggerTime != null">last_trigger_time = #{lastTriggerTime},</if>
+            <if test="triggerCount != null">trigger_count = #{triggerCount},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="level != null">level = #{level},</if>
+            <if test="acknowledgeBy != null">acknowledge_by = #{acknowledgeBy},</if>
+            <if test="acknowledgeTime != null">acknowledge_time = #{acknowledgeTime},</if>
+            <if test="resolveTime != null">resolve_time = #{resolveTime},</if>
+            <if test="suppressedUntil != null">suppressed_until = #{suppressedUntil},</if>
+            <if test="message != null">message = #{message},</if>
             update_time = NOW()
+        </set>
         WHERE id = #{id}
     </update>
 

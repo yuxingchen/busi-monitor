@@ -14,7 +14,10 @@
                         <Close />
                     </el-icon>
                 </div>
-                <div class="notification-content">{{ notification.message }}</div>
+                <div class="notification-content">
+                    <MdPreview :editorId="'alarm-' + notification.id" :modelValue="notification.message"
+                        :previewTheme="'default'" />
+                </div>
                 <div class="notification-footer">
                     <span class="notification-time">{{ formatTime(notification.time) }}</span>
                 </div>
@@ -26,6 +29,8 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { WarningFilled, Warning, InfoFilled, Close } from '@element-plus/icons-vue'
+import { MdPreview } from 'md-editor-v3'
+import 'md-editor-v3/lib/preview.css'
 
 const props = defineProps({
     maxCount: {
@@ -192,6 +197,76 @@ defineExpose({
     color: var(--theme-text-secondary, #b0b8c8);
     line-height: 1.5;
     word-break: break-all;
+}
+
+/* Markdown 预览样式覆盖 */
+.notification-content :deep(.md-editor-preview-wrapper),
+.notification-content :deep(.md-editor),
+.notification-content :deep(.md-editor-preview),
+.notification-content :deep([class*="md-editor"]) {
+    padding: 0 !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.notification-content :deep(.md-editor-preview) {
+    font-size: 13px !important;
+    line-height: 1.5 !important;
+    color: var(--theme-text-secondary, #b0b8c8) !important;
+    font-family: inherit !important;
+}
+
+.notification-content :deep(.md-editor-preview p) {
+    margin: 0 0 4px 0 !important;
+    color: var(--theme-text-secondary, #b0b8c8) !important;
+    background: transparent !important;
+}
+
+.notification-content :deep(.md-editor-preview blockquote) {
+    margin: 4px 0 !important;
+    padding: 4px 8px !important;
+    border-left: 3px solid var(--theme-accent, #00d4ff) !important;
+    background: rgba(0, 212, 255, 0.05) !important;
+    color: var(--theme-text-secondary, #b0b8c8) !important;
+}
+
+.notification-content :deep(.md-editor-preview blockquote p) {
+    color: var(--theme-text-secondary, #b0b8c8) !important;
+}
+
+.notification-content :deep(.md-editor-preview strong),
+.notification-content :deep(.md-editor-preview b) {
+    color: var(--theme-text, #fff) !important;
+    font-weight: 600 !important;
+}
+
+.notification-content :deep(.md-editor-preview h1),
+.notification-content :deep(.md-editor-preview h2),
+.notification-content :deep(.md-editor-preview h3),
+.notification-content :deep(.md-editor-preview h4),
+.notification-content :deep(.md-editor-preview h5),
+.notification-content :deep(.md-editor-preview h6) {
+    color: var(--theme-text, #fff) !important;
+    margin: 0 0 4px 0 !important;
+    font-size: 13px !important;
+}
+
+.notification-content :deep(.md-editor-preview a) {
+    color: var(--theme-accent, #00d4ff) !important;
+}
+
+.notification-content :deep(.md-editor-preview code) {
+    color: var(--theme-text, #fff) !important;
+    background: rgba(0, 212, 255, 0.1) !important;
+    padding: 1px 4px !important;
+    border-radius: 3px !important;
+}
+
+.notification-content :deep(.md-editor-preview *) {
+    color: inherit;
+    background: transparent !important;
 }
 
 .notification-footer {

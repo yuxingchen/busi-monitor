@@ -1,6 +1,7 @@
 package com.monitor.backend.controller;
 
 import com.monitor.backend.common.ApiResponse;
+import com.monitor.backend.dto.datasource.DataSourceRequest;
 import com.monitor.backend.entity.MonitorDataSource;
 import com.monitor.backend.exception.BusinessException;
 import com.monitor.backend.exception.ErrorCode;
@@ -60,12 +61,13 @@ public class DataSourceController {
 
     @Operation(summary = "添加数据源")
     @PostMapping
-    public ApiResponse<Void> add(@RequestBody MonitorDataSource dataSource) {
-        log.info("添加数据源: name={}", dataSource.getName());
+    public ApiResponse<Void> add(@RequestBody DataSourceRequest request) {
+        log.info("添加数据源: name={}", request.getName());
+        MonitorDataSource dataSource = convertToEntity(request);
         
         // 解密前端传输的加密密码后再加密存储
-        if (dataSource.getPassword() != null && !dataSource.getPassword().isEmpty()) {
-            String plainPassword = transmitEncryptionService.decrypt(dataSource.getPassword());
+        if (request.getPassword() != null && !request.getPassword().isEmpty()) {
+            String plainPassword = transmitEncryptionService.decrypt(request.getPassword());
             dataSource.setPasswordEncrypted(encryptionService.encrypt(plainPassword));
         }
         dataSourceMapper.insert(dataSource);
@@ -74,16 +76,17 @@ public class DataSourceController {
 
     @Operation(summary = "更新数据源")
     @PutMapping
-    public ApiResponse<Void> update(@RequestBody MonitorDataSource dataSource) {
-        log.info("更新数据源: id={}", dataSource.getId());
+    public ApiResponse<Void> update(@RequestBody DataSourceRequest request) {
+        log.info("更新数据源: id={}", request.getId());
+        MonitorDataSource dataSource = convertToEntity(request);
         
         // 如果密码变更则重新加密
-        if (dataSource.getPassword() != null && !dataSource.getPassword().isEmpty()) {
-            String plainPassword = transmitEncryptionService.decrypt(dataSource.getPassword());
+        if (request.getPassword() != null && !request.getPassword().isEmpty()) {
+            String plainPassword = transmitEncryptionService.decrypt(request.getPassword());
             dataSource.setPasswordEncrypted(encryptionService.encrypt(plainPassword));
         } else {
             // 保留原密码
-            MonitorDataSource existing = dataSourceMapper.findById(dataSource.getId());
+            MonitorDataSource existing = dataSourceMapper.findById(request.getId());
             if (existing != null) {
                 dataSource.setPasswordEncrypted(existing.getPasswordEncrypted());
             }
@@ -128,5 +131,18 @@ public class DataSourceController {
             log.warn("数据源连接测试失败: id={}, error={}", id, e.getMessage());
             return ApiResponse.fail(ErrorCode.DATASOURCE_CONNECTION_FAILED, "连接失败: " + e.getMessage());
         }
+    }
+
+    /**
+     * 将请求DTO转换为实体
+     */
+    private MonitorDataSource convertToEntity(DataSourceRequest request) {
+        MonitorDataSource ds = new MonitorDataSource();
+        ds.setId(request.getId());
+        ds.setName(request.getName());
+        ds.setUrl(request.getUrl());
+        ds.setUsername(request.getUsername());
+        ds.setDriverClassName(request.getDriverClassName());
+        return ds;
     }
 }

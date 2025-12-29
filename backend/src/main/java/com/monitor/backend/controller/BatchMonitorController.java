@@ -2,6 +2,7 @@ package com.monitor.backend.controller;
 
 import com.monitor.backend.common.ApiResponse;
 import com.monitor.backend.service.PerformanceMetricsService;
+import com.monitor.backend.util.DateTimeUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -15,7 +16,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,7 +66,7 @@ public class BatchMonitorController {
                     .addString("cacheKey", cacheKey)
                     .addString("dataSourceId", dataSourceId)
                     .addString("sql", sql)
-                    .addLocalDateTime("startTime", LocalDateTime.now())
+                    .addLocalDateTime("startTime", DateTimeUtils.now())
                     .toJobParameters();
 
             JobExecution execution = asyncJobLauncher.run(dataExtractionJob, params);
@@ -99,7 +99,7 @@ public class BatchMonitorController {
                     .addString("joinField", joinField)
                     .addString("enrichFields", enrichFields != null ? enrichFields : "")
                     .addString("targetTable", targetTable)
-                    .addLocalDateTime("startTime", LocalDateTime.now())
+                    .addLocalDateTime("startTime", DateTimeUtils.now())
                     .toJobParameters();
 
             JobExecution execution = asyncJobLauncher.run(enrichmentJob, params);

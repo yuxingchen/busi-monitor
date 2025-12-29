@@ -3,6 +3,7 @@ package com.monitor.backend.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.monitor.backend.constant.BatchDefaults;
 import com.monitor.backend.mapper.MonitorRecordMapper;
+import com.monitor.backend.util.DateTimeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -100,7 +101,7 @@ public class SqlPlaceholderService {
     private Map<String, String> buildPlaceholderValues(Long taskId) {
         Map<String, String> values = new HashMap<>();
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = DateTimeUtils.now();
         LocalDate today = LocalDate.now();
         LocalDate yesterday = today.minusDays(1);
 

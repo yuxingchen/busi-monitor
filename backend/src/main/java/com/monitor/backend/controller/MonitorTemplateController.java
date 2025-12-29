@@ -1,6 +1,7 @@
 package com.monitor.backend.controller;
 
 import com.monitor.backend.common.ApiResponse;
+import com.monitor.backend.dto.template.MonitorTemplateRequest;
 import com.monitor.backend.entity.MonitorTemplate;
 import com.monitor.backend.exception.BusinessException;
 import com.monitor.backend.exception.ErrorCode;
@@ -64,8 +65,9 @@ public class MonitorTemplateController {
 
     @Operation(summary = "添加模板")
     @PostMapping
-    public ApiResponse<Void> add(@RequestBody MonitorTemplate template) {
-        log.info("添加监控模板: name={}", template.getName());
+    public ApiResponse<Void> add(@RequestBody MonitorTemplateRequest request) {
+        log.info("添加监控模板: name={}", request.getName());
+        MonitorTemplate template = convertToEntity(request);
         template.setIsActive(1);
         template.setIsSystem(0);
         templateMapper.insert(template);
@@ -74,8 +76,9 @@ public class MonitorTemplateController {
 
     @Operation(summary = "更新模板")
     @PutMapping
-    public ApiResponse<Void> update(@RequestBody MonitorTemplate template) {
-        log.info("更新监控模板: id={}", template.getId());
+    public ApiResponse<Void> update(@RequestBody MonitorTemplateRequest request) {
+        log.info("更新监控模板: id={}", request.getId());
+        MonitorTemplate template = convertToEntity(request);
         templateMapper.update(template);
         return ApiResponse.ok("更新成功", null);
     }
@@ -87,5 +90,21 @@ public class MonitorTemplateController {
         log.info("删除监控模板: id={}", id);
         templateMapper.deleteById(id);
         return ApiResponse.ok();
+    }
+
+    /**
+     * 将请求DTO转换为实体
+     */
+    private MonitorTemplate convertToEntity(MonitorTemplateRequest request) {
+        MonitorTemplate template = new MonitorTemplate();
+        template.setId(request.getId());
+        template.setName(request.getName());
+        template.setCategory(request.getCategory());
+        template.setCollectScript(request.getCollectScript());
+        template.setDefaultThreshold(request.getDefaultThreshold());
+        template.setDefaultCron(request.getDefaultCron());
+        template.setAlarmTemplateId(request.getAlarmTemplateId());
+        template.setIsActive(request.getIsActive());
+        return template;
     }
 }

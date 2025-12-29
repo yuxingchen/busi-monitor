@@ -1,6 +1,7 @@
 package com.monitor.backend.alarm;
 
 import com.monitor.backend.entity.AlarmActive;
+import com.monitor.backend.util.DateTimeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -40,7 +41,7 @@ public class AlarmWebSocketService {
             notification.setMessage(alarm.getMessage());
             notification.setTriggerValue(alarm.getTriggerValue());
             notification.setThresholdValue(alarm.getThresholdValue());
-            notification.setTime(LocalDateTime.now());
+            notification.setTime(DateTimeUtils.now());
 
             messagingTemplate.convertAndSend("/topic/alarm", notification);
             logger.info("告警广播成功: alarmId={}, level={}", alarm.getId(), alarm.getLevel());
@@ -57,7 +58,7 @@ public class AlarmWebSocketService {
             Map<String, Object> payload = Map.of(
                     "type", "RESOLVED",
                     "alarmId", alarmId,
-                    "time", LocalDateTime.now().toString());
+                    "time", DateTimeUtils.now().toString());
             messagingTemplate.convertAndSend("/topic/alarm", payload);
             logger.info("告警恢复广播成功: alarmId={}", alarmId);
         } catch (Exception e) {
@@ -74,7 +75,7 @@ public class AlarmWebSocketService {
                     "type", "ACKNOWLEDGED",
                     "alarmId", alarmId,
                     "acknowledgeBy", acknowledgeBy,
-                    "time", LocalDateTime.now().toString());
+                    "time", DateTimeUtils.now().toString());
             messagingTemplate.convertAndSend("/topic/alarm", payload);
             logger.info("告警确认广播成功: alarmId={}, by={}", alarmId, acknowledgeBy);
         } catch (Exception e) {

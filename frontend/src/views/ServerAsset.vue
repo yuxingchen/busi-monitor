@@ -29,6 +29,8 @@
               <el-tag type="info" v-else>未检测</el-tag>
             </template>
           </el-table-column>
+          <el-table-column prop="createTime" label="创建时间" width="180" />
+          <el-table-column prop="updateTime" label="更新时间" width="180" />
           <el-table-column label="操作" width="280">
             <template #default="{ row }">
               <el-button size="small" type="success" @click="testConnection(row)" :loading="row.testing">测试</el-button>
@@ -55,7 +57,7 @@
         </div>
 
         <el-table :data="serverTasks" stripe v-if="selectedServerId">
-          <el-table-column prop="name" label="监控项" min-width="180">
+          <el-table-column prop="name" label="监控项" min-width="40">
             <template #default="{ row }">
               <div class="task-name-cell">
                 <MonitorIcon :type="getIconType(row)" :size="26" class="task-icon-svg" />
@@ -77,7 +79,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="最新值" width="100">
+          <el-table-column label="最新值" min-width="100">
             <template #default="{ row }">
               <span :class="getValueClass(row)">{{ row.lastRunValue || '-' }}</span>
             </template>
@@ -310,10 +312,19 @@
           </el-select>
         </el-form-item>
         <el-form-item label="告警模板">
-          <el-select v-model="editingTask.alarmTemplateId" placeholder="选择告警模板（用于告警消息格式）" style="width: 100%;"
-            clearable>
+          <el-select v-model="editingTask.alarmTemplateId" placeholder="选择告警模板（用于告警消息格式）" style="width: 100%;" clearable
+            @change="updateParsedParams">
             <el-option v-for="t in alarmTemplates" :key="t.id" :label="t.name" :value="t.id" />
           </el-select>
+        </el-form-item>
+        <!-- 脚本参数配置 -->
+        <el-form-item label="脚本参数" v-if="parsedParams.length > 0">
+          <div class="params-config">
+            <div v-for="param in parsedParams" :key="param" class="param-row">
+              <span class="param-name">${{ param }}</span>
+              <el-input v-model="taskParams[param]" :placeholder="`请输入 ${param} 的值`" size="small" style="flex: 1;" />
+            </div>
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -325,11 +336,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, DocumentAdd } from '@element-plus/icons-vue'
-import request from '../api/request'
 import { encryptPassword } from '../utils/crypto'
+import { serverAssetApi, serverGroupApi, serverMonitorTaskApi } from '../api/server'
+import { alarmChannelApi, alarmTemplateApi } from '../api/alarm'
+import { monitorTemplateApi } from '../api/template'
 import MonitorIcon from '../components/MonitorIcon.vue'
 
 const activeTab = ref('list')
@@ -372,6 +385,48 @@ const thresholdConfig = reactive({
   level: 'WARNING'
 })
 
+// 任务参数配置
+const taskParams = reactive({})  // 存储任务参数 { key: value }
+const parsedParams = ref([])     // 解析出的参数列表 ['port', 'path', ...]
+
+// 解析脚本中的 ${} 占位符
+const parseScriptParams = (script) => {
+  if (!script) return []
+  const regex = /\$\{([^}]+)\}/g
+  const params = new Set()
+  let match
+  while ((match = regex.exec(script)) !== null) {
+    params.add(match[1])
+  }
+  return Array.from(params)
+}
+
+// 更新解析的参数列表（合并脚本参数和告警模板参数）
+const updateParsedParams = () => {
+  const scriptParams = parseScriptParams(editingTask.collectScript)
+  let templateParams = []
+
+  // 如果选择了告警模板，解析模板中的参数
+  if (editingTask.alarmTemplateId) {
+    const template = alarmTemplates.value.find(t => t.id === editingTask.alarmTemplateId)
+    if (template && template.content) {
+      templateParams = parseScriptParams(template.content)
+    }
+  }
+
+  // 合并并去重，排除标准变量
+  const standardVars = ['serverName', 'value', 'threshold', 'taskName', 'taskId', 'operator', 'triggerType', 'level', 'ip']
+  const allParams = [...new Set([...scriptParams, ...templateParams])]
+    .filter(p => !standardVars.includes(p))
+
+  parsedParams.value = allParams
+}
+
+// 监听采集脚本变化，动态更新参数列表
+watch(() => editingTask.collectScript, () => {
+  updateParsedParams()
+})
+
 const filteredTemplates = computed(() => {
   return templates.value.filter(t => t.category === templateCategory.value)
 })
@@ -379,11 +434,11 @@ const filteredTemplates = computed(() => {
 const loadData = async () => {
   try {
     const [s, g, t, c, at] = await Promise.all([
-      request.get('/server-asset'),
-      request.get('/server-group'),
-      request.get('/monitor-template'),
-      request.get('/alarm/channel'),
-      request.get('/alarm/template')
+      serverAssetApi.list(),
+      serverGroupApi.list(),
+      monitorTemplateApi.list(),
+      alarmChannelApi.list(),
+      alarmTemplateApi.list()
     ])
     servers.value = s
     groups.value = g
@@ -396,7 +451,7 @@ const loadData = async () => {
 const loadServerTasks = async () => {
   if (!selectedServerId.value) return
   try {
-    serverTasks.value = await request.get(`/server-monitor-task/server/${selectedServerId.value}`)
+    serverTasks.value = await serverMonitorTaskApi.listByServer(selectedServerId.value)
   } catch (e) { console.error(e) }
 }
 
@@ -441,10 +496,7 @@ const addSelectedTemplates = async () => {
     return
   }
   try {
-    const result = await request.post('/server-monitor-task/batch', {
-      serverId: selectedServerId.value,
-      templateIds: selectedTemplates.value
-    })
+    const result = await serverMonitorTaskApi.batchAdd(selectedServerId.value, selectedTemplates.value)
     ElMessage.success(`成功添加 ${result.count} 个监控任务`)
     templateSelectorVisible.value = false
     loadServerTasks()
@@ -476,6 +528,17 @@ const editTask = (task) => {
     thresholdConfig.value = 0
     thresholdConfig.level = 'WARNING'
   }
+  // 解析已保存的参数
+  Object.keys(taskParams).forEach(k => delete taskParams[k])
+  if (task.params) {
+    try {
+      const savedParams = JSON.parse(task.params)
+      Object.assign(taskParams, savedParams)
+    } catch (e) {
+      console.error('解析参数失败', e)
+    }
+  }
+  updateParsedParams()
   taskEditVisible.value = true
 }
 
@@ -491,7 +554,15 @@ const saveTask = async () => {
       value: thresholdConfig.value,
       level: thresholdConfig.level
     })
-    await request.put('/server-monitor-task', editingTask)
+    // 序列化参数
+    if (Object.keys(taskParams).length > 0) {
+      editingTask.params = JSON.stringify(taskParams)
+    } else {
+      editingTask.params = null
+    }
+    // 排除前端辅助字段，只发送后端需要的字段
+    const { alarmChannelIds, ...taskData } = editingTask
+    await serverMonitorTaskApi.update(taskData)
     ElMessage.success('保存成功')
     taskEditVisible.value = false
     loadServerTasks()
@@ -501,20 +572,20 @@ const saveTask = async () => {
 const runTask = async (task) => {
   task.running = true
   try {
-    const result = await request.post(`/server-monitor-task/${task.id}/run`)
-    if (result.status === 'success') {
-      ElMessage.success(`执行成功: ${result.value}`)
-    } else {
-      ElMessage.error(result.message)
-    }
+    // request拦截器已自动解包响应，成功时返回的就是 { runTime, value }
+    const result = await serverMonitorTaskApi.run(task.id)
+    ElMessage.success(`执行成功: ${result.value}`)
     loadServerTasks()
-  } catch (e) { ElMessage.error('执行失败') }
+  } catch (e) {
+    // 失败时拦截器已显示错误消息
+    console.error('执行失败', e)
+  }
   finally { task.running = false }
 }
 
 const deleteTask = async (task) => {
   await ElMessageBox.confirm('确定删除该监控任务吗？', '确认')
-  await request.delete(`/server-monitor-task/${task.id}`)
+  await serverMonitorTaskApi.delete(task.id)
   ElMessage.success('删除成功')
   loadServerTasks()
 }
@@ -527,9 +598,9 @@ const saveServer = async () => {
       data.password = encryptPassword(data.password)
     }
     if (editingServer.id) {
-      await request.put('/server-asset', data)
+      await serverAssetApi.update(data)
     } else {
-      await request.post('/server-asset', data)
+      await serverAssetApi.create(data)
     }
     ElMessage.success('保存成功')
     addDialogVisible.value = false
@@ -544,7 +615,7 @@ const batchAdd = async () => {
     if (data.password) {
       data.password = encryptPassword(data.password)
     }
-    const result = await request.post('/server-asset/batch', data)
+    const result = await serverAssetApi.batchAdd(data)
     ElMessage.success(`成功添加 ${result.successCount}/${result.total} 台服务器`)
     if (result.failedIps && result.failedIps.length > 0) {
       ElMessage.warning(`失败: ${result.failedIps.join(', ')}`)
@@ -556,7 +627,7 @@ const batchAdd = async () => {
 
 const deleteServer = async (server) => {
   await ElMessageBox.confirm('确定删除该服务器吗？', '确认')
-  await request.delete(`/server-asset/${server.id}`)
+  await serverAssetApi.delete(server.id)
   ElMessage.success('删除成功')
   loadData()
 }
@@ -564,7 +635,7 @@ const deleteServer = async (server) => {
 const testConnection = async (server) => {
   server.testing = true
   try {
-    const result = await request.post(`/server-asset/${server.id}/test`)
+    const result = await serverAssetApi.testConnection(server.id)
     if (result.connected) {
       ElMessage.success(`连接成功: ${result.systemInfo?.hostname || server.ip}`)
     } else {
@@ -578,9 +649,9 @@ const testConnection = async (server) => {
 const saveGroup = async () => {
   try {
     if (editingGroup.id) {
-      await request.put('/server-group', editingGroup)
+      await serverGroupApi.update(editingGroup)
     } else {
-      await request.post('/server-group', editingGroup)
+      await serverGroupApi.create(editingGroup)
     }
     ElMessage.success('保存成功')
     groupDialogVisible.value = false
@@ -590,7 +661,7 @@ const saveGroup = async () => {
 
 const deleteGroup = async (group) => {
   await ElMessageBox.confirm('确定删除该分组吗？', '确认')
-  await request.delete(`/server-group/${group.id}`)
+  await serverGroupApi.delete(group.id)
   ElMessage.success('删除成功')
   loadData()
 }
@@ -623,7 +694,7 @@ const formatCron = (cron) => {
 // 切换任务启用状态
 const toggleTaskActive = async (task) => {
   try {
-    await request.put(`/server-monitor-task/${task.id}`, { isActive: task.isActive })
+    await serverMonitorTaskApi.updateById(task.id, { isActive: task.isActive })
     ElMessage.success(task.isActive ? '任务已启用' : '任务已禁用')
   } catch (e) {
     task.isActive = !task.isActive // 回滚
@@ -856,5 +927,38 @@ onMounted(() => { loadData() })
 .selected-count {
   color: var(--el-color-primary);
   font-weight: 500;
+}
+
+/* 参数配置样式 */
+.params-config {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  background: var(--el-fill-color-lighter);
+  border-radius: 8px;
+  padding: 16px;
+  border: 1px solid var(--theme-border);
+}
+
+.param-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.param-name {
+  min-width: 120px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+  color: var(--el-color-success);
+  background: var(--el-color-success-light-9);
+  border-radius: 4px;
+  text-align: center;
+  font-weight: 500;
+  height: 24px;
+  line-height: 24px;
+  padding: 0 12px;
+  box-sizing: border-box;
 }
 </style>
