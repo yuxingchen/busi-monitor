@@ -43,15 +43,13 @@ public class SmsAlarmSender implements AlarmSender {
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
     private final TransmitEncryptionService encryptionService;
-    private final GenericParameterService parameterBuilder;
 
-    public SmsAlarmSender(ObjectMapper objectMapper, TransmitEncryptionService encryptionService, GenericParameterService parameterBuilder) {
+    public SmsAlarmSender(ObjectMapper objectMapper, TransmitEncryptionService encryptionService) {
         this.objectMapper = objectMapper;
         this.encryptionService = encryptionService;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
-        this.parameterBuilder = parameterBuilder;
     }
 
     @Override

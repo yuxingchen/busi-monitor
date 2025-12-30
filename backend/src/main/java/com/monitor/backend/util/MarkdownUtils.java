@@ -1,10 +1,30 @@
 package com.monitor.backend.util;
 
+import com.vladsch.flexmark.html.HtmlRenderer;
+import com.vladsch.flexmark.parser.Parser;
+import com.vladsch.flexmark.util.ast.Node;
+import com.vladsch.flexmark.util.data.MutableDataSet;
+
 /**
  * Markdown 工具类
  * 提供 Markdown 格式处理的相关方法
  */
 public class MarkdownUtils {
+
+    // Flexmark 解析器和渲染器（线程安全，可复用）
+    private static final Parser PARSER;
+    private static final HtmlRenderer RENDERER;
+
+    static {
+        MutableDataSet options = new MutableDataSet();
+        // 软换行转为 <br> 标签（单个换行符也会转换）
+        options.set(HtmlRenderer.SOFT_BREAK, "<br />\n");
+        // 硬换行转为 <br> 标签
+        options.set(HtmlRenderer.HARD_BREAK, "<br />\n");
+        
+        PARSER = Parser.builder(options).build();
+        RENDERER = HtmlRenderer.builder(options).build();
+    }
 
     private MarkdownUtils() {
         // 工具类禁止实例化
@@ -71,8 +91,9 @@ public class MarkdownUtils {
     }
 
     /**
-     * 将 Markdown 转换为 HTML（简易实现）
-     * 支持基本的 Markdown 语法
+     * 将 Markdown 转换为 HTML
+     * 使用 Flexmark 库实现完整的 Markdown 解析
+     * 支持标题、加粗、斜体、链接、代码块、列表等完整语法
      *
      * @param markdown Markdown 格式的内容
      * @return HTML 内容
@@ -82,30 +103,33 @@ public class MarkdownUtils {
             return markdown;
         }
 
+        // 预处理：在中文字符后的强调符号前添加零宽空格，确保正确解析
+        // 这是因为 Flexmark 需要词边界来识别强调符号，中文没有词边界
+        String content = preprocessMarkdown(markdown);
+        
+        // 确保内容末尾有换行符，避免解析器遗漏末尾的 Markdown 符号
+        content = content.endsWith("\n") ? content : content + "\n";
+        Node document = PARSER.parse(content);
+        return RENDERER.render(document).trim();
+    }
+
+    /**
+     * 预处理 Markdown 内容
+     * 在中文字符与嵌套强调符号（3个及以上的 * 或 _）之间添加空格
+     * 确保 Flexmark 能正确识别词边界，解决 ***text*** 在中文后无法正确解析的问题
+     * 只处理嵌套强调符号，不影响普通的 ** 或 * 格式
+     */
+    private static String preprocessMarkdown(String markdown) {
         String result = markdown;
-
-        // 代码块
-        result = result.replaceAll("```([\\s\\S]*?)```", "<pre><code>$1</code></pre>");
-        result = result.replaceAll("`([^`]+)`", "<code>$1</code>");
-
-        // 标题
-        result = result.replaceAll("(?m)^######\\s*(.+)$", "<h6>$1</h6>");
-        result = result.replaceAll("(?m)^#####\\s*(.+)$", "<h5>$1</h5>");
-        result = result.replaceAll("(?m)^####\\s*(.+)$", "<h4>$1</h4>");
-        result = result.replaceAll("(?m)^###\\s*(.+)$", "<h3>$1</h3>");
-        result = result.replaceAll("(?m)^##\\s*(.+)$", "<h2>$1</h2>");
-        result = result.replaceAll("(?m)^#\\s*(.+)$", "<h1>$1</h1>");
-
-        // 加粗和斜体
-        result = result.replaceAll("\\*\\*(.+?)\\*\\*", "<strong>$1</strong>");
-        result = result.replaceAll("\\*(.+?)\\*", "<em>$1</em>");
-
-        // 链接
-        result = result.replaceAll("\\[([^\\]]+)\\]\\(([^)]+)\\)", "<a href=\"$2\">$1</a>");
-
-        // 换行转 <br>
-        result = result.replaceAll("\\n", "<br>");
-
+        
+        // 只处理嵌套强调符号（3个及以上的 * 或 _）
+        // 匹配: 中文字符后紧跟 ***、___、**** 等
+        result = result.replaceAll("([\\u4e00-\\u9fa5])([*]{3,})", "$1 $2");
+        result = result.replaceAll("([\\u4e00-\\u9fa5])([_]{3,})", "$1 $2");
+        // 匹配: ***、___、**** 等后紧跟中文字符
+        result = result.replaceAll("([*]{3,})([\\u4e00-\\u9fa5])", "$1 $2");
+        result = result.replaceAll("([_]{3,})([\\u4e00-\\u9fa5])", "$1 $2");
+        
         return result;
     }
 }
