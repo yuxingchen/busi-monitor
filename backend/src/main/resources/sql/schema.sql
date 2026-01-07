@@ -76,18 +76,18 @@ CREATE TABLE IF NOT EXISTS `sys_user`
 -- 2. 监控任务表
 CREATE TABLE IF NOT EXISTS `monitor_task`
 (
-    `id`                   BIGINT AUTO_INCREMENT PRIMARY KEY,
-    `name`                 VARCHAR(100) NOT NULL COMMENT '任务名称',
-    `datasource_id`        BIGINT       NOT NULL COMMENT '关联的数据源ID',
-    `sql_script`           TEXT         NOT NULL COMMENT '监控SQL',
-    `cron_expression`      VARCHAR(100) NOT NULL COMMENT 'Cron表达式',
-    `is_active`            TINYINT(1)  DEFAULT 1 COMMENT '是否启用: 1-启用, 0-停用',
-    `result_type`          VARCHAR(20) DEFAULT 'SCALAR' COMMENT '结果类型: SCALAR(数值), DATASET(列表)',
-    `alarm_threshold_rule` TEXT COMMENT '报警规则JSON (e.g. {"operator":">", "value":10})',
-    `chart_config`         TEXT COMMENT '可视化配置JSON (e.g. {"type": "bar", "xAxis": "status", "yAxis": "count"})',
-    `is_store_data`        TINYINT(1)  DEFAULT 0 COMMENT '是否开启结果存储',
-    `create_time`          DATETIME    DEFAULT CURRENT_TIMESTAMP,
-    `update_time`          DATETIME    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    `id`              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `name`            VARCHAR(100) NOT NULL COMMENT '任务名称',
+    `datasource_id`   BIGINT       NOT NULL COMMENT '关联的数据源ID',
+    `sql_script`      TEXT         NOT NULL COMMENT '监控SQL',
+    `cron_expression` VARCHAR(100) NOT NULL COMMENT 'Cron表达式',
+    `is_active`       TINYINT(1)  DEFAULT 1 COMMENT '是否启用: 1-启用, 0-停用',
+    `result_type`     VARCHAR(20) DEFAULT 'SCALAR' COMMENT '结果类型: SCALAR(数值), DATASET(列表)',
+    `alarm_config`    TEXT COMMENT '报警配置JSON (e.g. {"operator":">", "value":10})',
+    `chart_config`    TEXT COMMENT '可视化配置JSON (e.g. {"type": "bar", "xAxis": "status", "yAxis": "count"})',
+    `is_store_data`   TINYINT(1)  DEFAULT 0 COMMENT '是否开启结果存储',
+    `create_time`     DATETIME    DEFAULT CURRENT_TIMESTAMP,
+    `update_time`     DATETIME    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='监控任务配置';
 
@@ -121,13 +121,14 @@ CREATE TABLE IF NOT EXISTS `alarm_channel`
 -- 5. 报警模板表
 CREATE TABLE IF NOT EXISTS `alarm_template`
 (
-    `id`          BIGINT AUTO_INCREMENT PRIMARY KEY,
-    `name`        VARCHAR(100) NOT NULL COMMENT '模板名称',
-    `subject`     VARCHAR(200) COMMENT '标题模板',
-    `content`     TEXT         NOT NULL COMMENT '内容模板，支持变量: ${taskName}, ${value}, ${threshold}, ${time}',
-    `is_default`  TINYINT(1) DEFAULT 0 COMMENT '是否默认模板',
-    `create_time` DATETIME   DEFAULT CURRENT_TIMESTAMP,
-    `update_time` DATETIME   DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    `id`           BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `name`         VARCHAR(100) NOT NULL COMMENT '模板名称',
+    `subject`      VARCHAR(200) COMMENT '标题模板',
+    `content`      TEXT         NOT NULL COMMENT '内容模板，支持变量: ${taskName}, ${value}, ${threshold}, ${time}',
+    `content_type` varchar(20) DEFAULT 'TEXT' COMMENT '内容格式(TEXT/MARKDOWN)',
+    `is_default`   TINYINT(1)  DEFAULT 0 COMMENT '是否默认模板',
+    `create_time`  DATETIME    DEFAULT CURRENT_TIMESTAMP,
+    `update_time`  DATETIME    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='报警模板';
 

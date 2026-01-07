@@ -71,5 +71,4 @@ public class ChartConfigDto {
 
     /** 需要创建索引的字段列表 */
     private List<String> indexFields;
-
 }

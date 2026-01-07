@@ -328,13 +328,11 @@
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
-import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, QuestionFilled } from '@element-plus/icons-vue'
 import { MdEditor } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 import request from '../api/request'
-import SockJS from 'sockjs-client/dist/sockjs'
-import { Client } from '@stomp/stompjs'
 
 import { useRoute } from 'vue-router'
 import { encryptPassword } from '../utils/crypto'
@@ -348,8 +346,6 @@ const historyPage = ref(1)
 const historyPageSize = ref(20)
 const historyTotal = ref(0)
 const activeAlarms = ref([])
-const wsConnected = ref(false)
-let stompClient = null
 
 const channelDialogVisible = ref(false)
 const templateDialogVisible = ref(false)
@@ -630,67 +626,6 @@ const showSuppressDialog = async (alarm) => {
   }
 }
 
-// ============ WebSocket 连接 ============
-
-const connectWebSocket = () => {
-  stompClient = new Client({
-    webSocketFactory: () => new SockJS('/api/ws'),
-    debug: (str) => console.log('[STOMP]', str),
-    reconnectDelay: 5000,
-    heartbeatIncoming: 4000,
-    heartbeatOutgoing: 4000,
-
-    onConnect: () => {
-      wsConnected.value = true
-      console.log('[告警WebSocket] 连接成功')
-
-      stompClient.subscribe('/topic/alarm', (message) => {
-        try {
-          const data = JSON.parse(message.body)
-          handleAlarmMessage(data)
-        } catch (e) {
-          console.error('[告警WebSocket] 消息解析失败:', e)
-        }
-      })
-    },
-
-    onDisconnect: () => {
-      wsConnected.value = false
-      console.log('[告警WebSocket] 连接断开')
-    },
-
-    onStompError: (frame) => {
-      console.error('[告警WebSocket] STOMP错误:', frame.headers['message'])
-    }
-  })
-
-  stompClient.activate()
-}
-
-const handleAlarmMessage = (data) => {
-  switch (data.type || data.status) {
-    case 'FIRING':
-      // 重新加载活跃告警（不显示通知，App.vue已全局处理）
-      loadActiveAlarms()
-      break
-
-    case 'RESOLVED':
-      loadActiveAlarms()
-      break
-
-    case 'ACKNOWLEDGED':
-      loadActiveAlarms()
-      break
-  }
-}
-
-const disconnectWebSocket = () => {
-  if (stompClient) {
-    stompClient.deactivate()
-    stompClient = null
-  }
-  wsConnected.value = false
-}
 // 定时刷新活跃告警（App.vue 已全局处理 WebSocket 通知）
 let refreshTimer = null
 

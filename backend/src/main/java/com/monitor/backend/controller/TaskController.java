@@ -131,10 +131,13 @@ public class TaskController {
         task.setId(request.getId());
         task.setName(request.getName());
         task.setDatasourceId(request.getDatasourceId());
-        task.setSqlScript(request.getSqlQuery());
-        task.setCronExpression(request.getCronExpression());
-        task.setAlarmThresholdRule(request.getThresholdRule());
+        task.setSqlScript(request.getSqlScript());
+        task.setResultType(request.getResultType());
+        task.setChartConfig(request.getChartConfig());
+        task.setAlarmConfig(request.getAlarmConfig());
+        task.setIsStoreData(request.getIsStoreData());
         task.setIsActive(request.getIsActive());
+        task.setCronExpression(request.getCronExpression());
         return task;
     }
 }

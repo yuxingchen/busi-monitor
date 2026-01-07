@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none">
+  <defs>
+    <linearGradient id="monitorGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00D4AA"/>
+      <stop offset="50%" stop-color="#00B4D8"/>
+      <stop offset="100%" stop-color="#0077B6"/>
+    </linearGradient>
+    <linearGradient id="pulseGrad" x1="0%" y1="50%" x2="100%" y2="50%">
+      <stop offset="0%" stop-color="#00FF88"/>
+      <stop offset="100%" stop-color="#00D4AA"/>
+    </linearGradient>
+  </defs>
+  <!-- 监控屏幕外框 -->
+  <rect x="2" y="3" width="20" height="14" rx="2" fill="url(#monitorGrad)"/>
+  <!-- 屏幕内部 -->
+  <rect x="3.5" y="4.5" width="17" height="11" rx="1" fill="#0a1628"/>
+  <!-- 心电图/监控波形 -->
+  <polyline points="5,10 7,10 8,7 9.5,13 11,8 12.5,11 14,10 16,10 17,6 18.5,12 19,10" 
+            stroke="url(#pulseGrad)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- 监控点 -->
+  <circle cx="17" cy="6" r="1" fill="#00FF88">
+    <animate attributeName="opacity" values="1;0.4;1" dur="1.5s" repeatCount="indefinite"/>
+  </circle>
+  <!-- 底座 -->
+  <path d="M8 17h8l-1 3H9l-1-3z" fill="url(#monitorGrad)"/>
+  <!-- 底座底部 -->
+  <rect x="7" y="20" width="10" height="1" rx="0.5" fill="url(#monitorGrad)"/>
+</svg>

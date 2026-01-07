@@ -19,21 +19,25 @@ public class MonitorTaskRequest {
     @Schema(description = "数据源ID")
     private Long datasourceId;
 
-    @Schema(description = "SQL查询语句")
-    private String sqlQuery;
+    @Schema(description = "SQL脚本")
+    private String sqlScript;
 
     @Schema(description = "Cron定时表达式")
     private String cronExpression;
 
-    @Schema(description = "告警阈值规则（JSON格式）")
-    private String thresholdRule;
-
-    @Schema(description = "告警渠道ID列表（逗号分隔）")
-    private String alarmChannels;
-
-    @Schema(description = "告警模板ID")
-    private Long alarmTemplateId;
-
     @Schema(description = "是否启用（1=启用，0=禁用）")
     private Integer isActive;
+
+    @Schema(description = "结果类型（SCALAR=单值，DATASET=数据集）")
+    private String resultType;
+
+    @Schema(description = "告警配置（JSON格式）")
+    private String alarmConfig;
+
+    @Schema(description = "图表配置（JSON格式）")
+    private String chartConfig;
+
+    @Schema(description = "是否存储历史数据（1=存储，0=不存储）")
+    private Integer isStoreData;
+
 }

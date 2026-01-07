@@ -42,4 +42,25 @@ public class WorkflowStepRequest {
 
     @Schema(description = "批处理大小")
     private Integer batchSize;
+
+    @Schema(description = "其他配置（JSON格式）")
+    private String config;
+
+    @Schema(description = "编辑器X坐标")
+    private Integer positionX;
+
+    @Schema(description = "编辑器Y坐标")
+    private Integer positionY;
+
+    @Schema(description = "分区主键列名")
+    private String idColumn;
+
+    @Schema(description = "分区数量")
+    private Integer partitionCount;
+
+    @Schema(description = "Chunk大小")
+    private Integer chunkSize;
+
+    @Schema(description = "缓存策略")
+    private String cacheStrategy;
 }

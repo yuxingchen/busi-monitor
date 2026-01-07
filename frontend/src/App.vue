@@ -149,6 +149,7 @@ import request from './api/request'
 import AlarmNotificationPanel from './components/AlarmNotificationPanel.vue'
 import { MdPreview } from 'md-editor-v3'
 import 'md-editor-v3/lib/preview.css'
+import { WS_URL } from './utils/config'
 
 const route = useRoute()
 const router = useRouter()
@@ -222,12 +223,6 @@ const toggleFullscreen = () => {
 // 用户菜单命令处理
 const handleUserCommand = (command) => {
   switch (command) {
-    case 'profile':
-      ElMessage.info('个人信息功能开发中')
-      break
-    case 'password':
-      ElMessage.info('修改密码功能开发中')
-      break
     case 'logout':
       ElMessageBox.confirm('确定要退出登录吗？', '提示', {
         confirmButtonText: '确定',
@@ -268,7 +263,7 @@ const connectWebSocket = () => {
     stompClient.deactivate()
   }
 
-  const socket = new SockJS('/api/ws')
+  const socket = new SockJS(WS_URL)
   stompClient = new Client({
     webSocketFactory: () => socket,
     reconnectDelay: 5000,
@@ -380,10 +375,13 @@ const formatTime = (time) => {
   return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-// Initialize alarms
+// Initialize alarms - 只在用户已登录时执行
 onMounted(() => {
-  loadActiveAlarms()
-  connectWebSocket()
+  const token = localStorage.getItem('token')
+  if (token) {
+    loadActiveAlarms()
+    connectWebSocket()
+  }
 })
 
 onUnmounted(() => {

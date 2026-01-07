@@ -9,7 +9,7 @@
         <result column="cron_expression" property="cronExpression"/>
         <result column="is_active" property="isActive"/>
         <result column="result_type" property="resultType"/>
-        <result column="alarm_threshold_rule" property="alarmThresholdRule"/>
+        <result column="alarm_config" property="alarmConfig"/>
         <result column="chart_config" property="chartConfig"/>
         <result column="is_store_data" property="isStoreData"/>
         <result column="create_time" property="createTime"/>
@@ -24,7 +24,7 @@
         cron_expression,
         is_active,
         result_type,
-        alarm_threshold_rule,
+        alarm_config,
         chart_config,
         is_store_data,
         create_time,
@@ -53,9 +53,9 @@
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO monitor_task(name, datasource_id, sql_script, cron_expression, is_active, result_type,
-                                 alarm_threshold_rule, chart_config, is_store_data, create_time, update_time)
+        alarm_config, chart_config, is_store_data, create_time, update_time)
         VALUES (#{name}, #{datasourceId}, #{sqlScript}, #{cronExpression}, #{isActive}, #{resultType},
-                #{alarmThresholdRule}, #{chartConfig}, #{isStoreData}, #{createTime}, #{updateTime})
+                #{alarmConfig}, #{chartConfig}, #{isStoreData}, #{createTime}, #{updateTime})
     </insert>
 
     <update id="update">
@@ -67,7 +67,7 @@
             <if test="cronExpression != null">cron_expression = #{cronExpression},</if>
             <if test="isActive != null">is_active = #{isActive},</if>
             <if test="resultType != null">result_type = #{resultType},</if>
-            <if test="alarmThresholdRule != null">alarm_threshold_rule = #{alarmThresholdRule},</if>
+            <if test="alarmConfig != null">alarm_config = #{alarmConfig},</if>
             <if test="chartConfig != null">chart_config = #{chartConfig},</if>
             <if test="isStoreData != null">is_store_data = #{isStoreData},</if>
             update_time = NOW()

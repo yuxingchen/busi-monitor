@@ -34,7 +34,7 @@ public class Workflow {
     @Schema(description = "结果输出表名")
     private String outputTable;
 
-    @Schema(description = "索引字段配置（JSON数组）")
+    @Schema(description = "索引字段配置")
     private String indexFields;
 
     @Schema(description = "创建时间")

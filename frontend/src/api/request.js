@@ -1,8 +1,17 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
+/**
+ * API前缀配置
+ * - 开发环境: http://localhost:8080/api (通过 .env.development 配置)
+ * - 生产环境: /api (通过 .env.production 配置, 由nginx代理转发)
+ * 
+ * 使用方式: 在对应的 .env 文件中设置 VITE_API_PREFIX
+ */
+const apiPrefix = import.meta.env.VITE_API_PREFIX || '/api'
+
 const request = axios.create({
-    baseURL: 'http://localhost:8080/api', // Backend URL
+    baseURL: apiPrefix,
     timeout: 30000
 })
 
@@ -11,7 +20,11 @@ request.interceptors.request.use(
     config => {
         const token = localStorage.getItem('token')
         if (token) {
+            // 同时设置两个头，确保兼容性：
+            // - Authorization: 标准 Bearer Token（本地开发使用）
+            // - X-Auth-Token: 自定义头（Nginx auth_basic 环境使用，避免 Authorization 被拦截）
             config.headers['Authorization'] = `Bearer ${token}`
+            config.headers['X-Auth-Token'] = token
         }
         return config
     },

@@ -9,6 +9,8 @@ public final class AuthConstants {
     // JWT相关
     public static final String BEARER_PREFIX = "Bearer ";
     public static final String AUTHORIZATION_HEADER = "Authorization";
+    // 自定义Token头（用于Nginx auth_basic场景，避免与Basic Auth的Authorization头冲突）
+    public static final String X_AUTH_TOKEN_HEADER = "X-Auth-Token";
     
     // 加密相关
     public static final String ENCRYPTION_PREFIX = "ENC:";

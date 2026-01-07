@@ -142,11 +142,9 @@ public class WorkflowController {
 
         // 删除旧步骤，插入新步骤
         stepMapper.deleteByWorkflowId(id);
-        if (steps != null) {
-            for (WorkflowStep step : steps) {
-                step.setWorkflowId(id);
-                stepMapper.insert(step);
-            }
+        for (WorkflowStep step : steps) {
+            step.setWorkflowId(id);
+            stepMapper.insert(step);
         }
 
         return ApiResponse.ok("更新成功", workflow);
@@ -285,6 +283,7 @@ public class WorkflowController {
         workflow.setTimeoutSeconds(request.getTimeoutSeconds());
         workflow.setIndexFields(request.getIndexFields());
         workflow.setIsActive(request.getIsActive());
+        workflow.setOutputTable(request.getOutputTable());
         return workflow;
     }
 
@@ -306,6 +305,13 @@ public class WorkflowController {
             step.setSqlScript(req.getSqlScript());
             step.setResultVariable(req.getResultVariable());
             step.setBatchEnabled(req.getBatchEnabled());
+            step.setConfig(req.getConfig());
+            step.setPositionX(req.getPositionX());
+            step.setPositionY(req.getPositionY());
+            step.setIdColumn(req.getIdColumn());
+            step.setPartitionCount(req.getPartitionCount());
+            step.setChunkSize(req.getChunkSize());
+            step.setCacheStrategy(req.getCacheStrategy());
             steps.add(step);
         }
         return steps;

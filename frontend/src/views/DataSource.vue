@@ -5,7 +5,7 @@
       <div class="header-info">
         <h3 class="header-title">
           <el-icon class="title-icon">
-            <Connection />
+            <Connection/>
           </el-icon>
           数据源配置
         </h3>
@@ -13,7 +13,7 @@
       </div>
       <el-button type="primary" class="add-btn" @click="handleAdd">
         <el-icon>
-          <Plus />
+          <Plus/>
         </el-icon>
         新增数据源
       </el-button>
@@ -22,9 +22,9 @@
     <!-- Data Table Card -->
     <div class="table-card">
       <el-table :data="tableData" class="custom-table"
-        :header-cell-style="{ background: 'rgba(0, 40, 80, 0.5)', color: '#00f2fe', fontWeight: '600' }"
-        :row-style="{ background: 'transparent' }">
-        <el-table-column prop="id" label="ID" width="80" align="center" />
+                :header-cell-style="{ background: 'rgba(0, 40, 80, 0.5)', color: '#00f2fe', fontWeight: '600' }"
+                :row-style="{ background: 'transparent' }">
+        <el-table-column prop="id" label="ID" width="80" align="center"/>
         <el-table-column prop="name" label="数据源名称" min-width="150">
           <template #default="{ row }">
             <div class="ds-name">
@@ -40,7 +40,7 @@
             </el-tooltip>
           </template>
         </el-table-column>
-        <el-table-column prop="username" label="用户名" width="120" />
+        <el-table-column prop="username" label="用户名" width="120"/>
         <el-table-column prop="driverClassName" label="驱动类型" width="180">
           <template #default="{ row }">
             <el-tag size="small" effect="dark" class="driver-tag">
@@ -53,19 +53,19 @@
             <div class="action-btns">
               <el-button size="small" class="btn-test" :loading="testingId === row.id" @click="handleTest(row)">
                 <el-icon v-if="testingId !== row.id">
-                  <Connection />
+                  <Connection/>
                 </el-icon>
                 测试
               </el-button>
               <el-button size="small" class="btn-edit" @click="handleEdit(row)">
                 <el-icon>
-                  <Edit />
+                  <Edit/>
                 </el-icon>
                 编辑
               </el-button>
               <el-button size="small" class="btn-delete" @click="handleDelete(row)">
                 <el-icon>
-                  <Delete />
+                  <Delete/>
                 </el-icon>
                 删除
               </el-button>
@@ -77,7 +77,7 @@
       <!-- Empty State -->
       <div v-if="tableData.length === 0" class="empty-state">
         <el-icon class="empty-icon">
-          <Box />
+          <Box/>
         </el-icon>
         <p>暂无数据源配置</p>
         <span>点击上方按钮添加您的第一个数据源</span>
@@ -85,33 +85,34 @@
     </div>
 
     <!-- Dialog -->
-    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑数据源' : '新增数据源'" width="550px" class="custom-dialog"
-      :close-on-click-modal="false">
+    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑数据源' : '新增数据源'" width="550px"
+               class="custom-dialog"
+               :close-on-click-modal="false">
       <el-form :model="form" label-width="100px" class="custom-form">
         <el-form-item label="名称" required>
-          <el-input v-model="form.name" placeholder="输入数据源名称" />
+          <el-input v-model="form.name" placeholder="输入数据源名称"/>
         </el-form-item>
         <el-form-item label="JDBC URL" required>
-          <el-input v-model="form.url" placeholder="jdbc:mysql://host:port/database" />
+          <el-input v-model="form.url" placeholder="jdbc:mysql://host:port/database"/>
         </el-form-item>
         <el-row :gutter="15">
           <el-col :span="12">
             <el-form-item label="用户名" required>
-              <el-input v-model="form.username" placeholder="数据库用户名" />
+              <el-input v-model="form.username" placeholder="数据库用户名"/>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="密码" required>
-              <el-input v-model="form.password" type="password" show-password placeholder="数据库密码" />
+              <el-input v-model="form.password" type="password" show-password placeholder="数据库密码"/>
             </el-form-item>
           </el-col>
         </el-row>
         <el-form-item label="驱动类">
           <el-select v-model="form.driverClassName" style="width: 100%">
-            <el-option label="MySQL" value="com.mysql.cj.jdbc.Driver" />
-            <el-option label="PostgreSQL" value="org.postgresql.Driver" />
-            <el-option label="Oracle" value="oracle.jdbc.OracleDriver" />
-            <el-option label="SQL Server" value="com.microsoft.sqlserver.jdbc.SQLServerDriver" />
+            <el-option label="MySQL" value="com.mysql.cj.jdbc.Driver"/>
+            <el-option label="PostgreSQL" value="org.postgresql.Driver"/>
+            <el-option label="Oracle" value="oracle.jdbc.OracleDriver"/>
+            <el-option label="SQL Server" value="com.microsoft.sqlserver.jdbc.SQLServerDriver"/>
           </el-select>
         </el-form-item>
       </el-form>
@@ -126,11 +127,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive } from 'vue'
+import {ref, onMounted, reactive} from 'vue'
 import request from '../api/request'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Connection, Plus, Edit, Delete, Box } from '@element-plus/icons-vue'
-import { encryptPassword } from '../utils/crypto'
+import {ElMessage, ElMessageBox} from 'element-plus'
+import {Connection, Plus, Edit, Delete, Box} from '@element-plus/icons-vue'
+import {encryptPassword} from '../utils/crypto'
 
 const tableData = ref([])
 const dialogVisible = ref(false)
@@ -158,7 +159,9 @@ const loadData = async () => {
   try {
     const res = await request.get('/datasource')
     tableData.value = res
-  } catch (e) { console.error(e) }
+  } catch (e) {
+    console.error(e)
+  }
 }
 
 const handleAdd = () => {
@@ -187,18 +190,15 @@ const handleDelete = (row) => {
     await request.delete(`/datasource/${row.id}`)
     ElMessage.success('删除成功')
     loadData()
-  }).catch(() => { })
+  }).catch(() => {
+  })
 }
 
 const handleTest = async (row) => {
   testingId.value = row.id
   try {
     const res = await request.post(`/datasource/${row.id}/test`)
-    if (res.success) {
-      ElMessage.success(`连接成功！数据库: ${res.dbProductName} ${res.dbVersion}`)
-    } else {
-      ElMessage.error(res.message || '连接失败')
-    }
+    ElMessage.success(`连接成功！数据库: ${res.dbProductName} ${res.dbVersion}`)
   } catch (e) {
     ElMessage.error('测试连接失败')
   } finally {
@@ -213,7 +213,7 @@ const handleSave = async () => {
   }
   try {
     // 加密密码后发送
-    const payload = { ...form }
+    const payload = {...form}
     if (payload.password) {
       payload.password = encryptPassword(payload.password)
     }

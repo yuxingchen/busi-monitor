@@ -21,9 +21,6 @@ public class WorkflowRequest {
     @Schema(description = "描述")
     private String description;
 
-    @Schema(description = "默认数据源ID")
-    private Long datasourceId;
-
     @Schema(description = "Cron定时表达式")
     private String cronExpression;
 
@@ -35,6 +32,9 @@ public class WorkflowRequest {
 
     @Schema(description = "是否启用（1=启用，0=禁用）")
     private Integer isActive;
+
+    @Schema(description = "输出表名")
+    private String outputTable;
 
     @Schema(description = "工作流步骤列表")
     private List<WorkflowStepRequest> steps;

@@ -33,8 +33,8 @@ public class MonitorTask {
     @Schema(description = "结果类型（SCALAR=单值，DATASET=数据集）")
     private String resultType;
     
-    @Schema(description = "告警阈值规则（JSON格式）")
-    private String alarmThresholdRule;
+    @Schema(description = "告警配置（JSON格式）")
+    private String alarmConfig;
     
     @Schema(description = "图表配置（JSON格式）")
     private String chartConfig;

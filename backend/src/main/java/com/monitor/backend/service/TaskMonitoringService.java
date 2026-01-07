@@ -3,6 +3,7 @@ package com.monitor.backend.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.monitor.backend.alarm.AlarmContext;
 import com.monitor.backend.alarm.AlarmService;
+import com.monitor.backend.dto.DatasetAlarmConfig;
 import com.monitor.backend.enums.CompareOperator;
 import com.monitor.backend.entity.MonitorRecord;
 import com.monitor.backend.entity.MonitorTask;
@@ -91,7 +92,6 @@ public class TaskMonitoringService {
         record.setExecutionTime(DateTimeUtils.now());
 
         try {
-            List<Map<String, Object>> resultSet;
             if ("SCALAR".equalsIgnoreCase(task.getResultType())) {
                 Double result = sqlExecutor.executeScalar(task.getDatasourceId(), task.getSqlScript(), task.getId());
                 record.setResultNumber(result);
@@ -99,13 +99,13 @@ public class TaskMonitoringService {
                 recordMapper.insert(record); // 保存获取 ID
 
                 // Alarm Logic for SCALAR
-                checkAlarm(task, result);
+                checkAlarm(task, result, null);
 
             } else {
-                resultSet = sqlExecutor.executeQuery(task.getDatasourceId(), task.getSqlScript(), task.getId());
+                List<Map<String, Object>> resultSet = sqlExecutor.executeQuery(task.getDatasourceId(), task.getSqlScript(), task.getId());
                 record.setIsSuccess(1);
 
-                // 根据数据量决定 resultJson 内容
+                // 根据数据量决定 resultJson 内容....//[
                 if (resultSet.isEmpty()) {
                     record.setResultJson("[]");
                 } else if (resultSet.size() <= 10) {
@@ -151,6 +151,9 @@ public class TaskMonitoringService {
 
                     logger.info("Saved {} rows to {} with batch_id={}", resultSet.size(), tableName, batchId);
                 }
+
+                // 检查 DATASET 告警
+                checkAlarm(task, null, resultSet);
             }
         } catch (Exception e) {
             logger.error("Task execution failed: " + task.getName(), e);
@@ -160,39 +163,268 @@ public class TaskMonitoringService {
         }
     }
 
-    private void checkAlarm(MonitorTask task, Double value) {
-        if (value == null || task.getAlarmThresholdRule() == null || task.getAlarmThresholdRule().isEmpty())
+    /**
+     * 统一的告警检查方法
+     * 支持 SCALAR 和 DATASET 两种结果类型
+     *
+     * @param task        监控任务
+     * @param scalarValue SCALAR 类型的结果值（DATASET 类型传 null）
+     * @param resultSet   DATASET 类型的结果集（SCALAR 类型传 null）
+     */
+    private void checkAlarm(MonitorTask task, Double scalarValue, List<Map<String, Object>> resultSet) {
+        if (task.getAlarmConfig() == null || task.getAlarmConfig().isEmpty()) {
             return;
+        }
 
         try {
-            Map rule = objectMapper.readValue(task.getAlarmThresholdRule(), Map.class);
-            String operator = (String) rule.get("operator");
-            Number threshold = (Number) rule.get("value");
+            DatasetAlarmConfig alarmConfig = objectMapper.readValue(task.getAlarmConfig(), DatasetAlarmConfig.class);
 
-            if (operator != null && threshold != null) {
-                double thresholdVal = threshold.doubleValue();
-                boolean isAlarm = CompareOperator.fromSymbol(operator).compare(value, thresholdVal);
-                if (isAlarm) {
-                    logger.warn("ALARM TRIGGERED for Task {}: Value {} {} {}", task.getName(), value, operator,
-                            thresholdVal);
-
-                    // 触发告警服务
-                    AlarmContext context = new AlarmContext();
-                    context.setTaskId(task.getId());
-                    context.setTaskType("MONITOR_TASK");
-                    context.setTaskName(task.getName());
-                    context.setTriggerType("THRESHOLD");
-                    context.setCurrentValue(value);
-                    context.setThresholdValue(thresholdVal);
-                    context.setOperator(operator);
-                    alarmService.triggerAlarm(context);
-                } else {
-                    // 值正常，检查是否需要恢复告警
-                    alarmService.resolveAlarm(task.getId(), "MONITOR_TASK");
-                }
+            // 检查告警是否启用
+            if (alarmConfig == null || !Boolean.TRUE.equals(alarmConfig.getEnabled())) {
+                return;
             }
+
+            String operator = alarmConfig.getOperator();
+            if (operator == null) {
+                return;
+            }
+
+            boolean isAlarm = false;
+            String triggerType = alarmConfig.getTriggerType();
+            Double currentValue = null;
+            Double thresholdValue = alarmConfig.getThreshold();
+
+            // 根据结果类型和触发类型计算告警条件
+            if (scalarValue != null) {
+                // SCALAR 类型：直接使用查询结果值
+                currentValue = scalarValue;
+                triggerType = "THRESHOLD";  // SCALAR 使用阈值触发
+                if (thresholdValue != null) {
+                    isAlarm = CompareOperator.fromSymbol(operator).compare(scalarValue, thresholdValue);
+                }
+            } else if (resultSet != null) {
+                // DATASET 类型：根据触发类型处理
+                if (triggerType == null) {
+                    return;
+                }
+
+                if ("FIELD_VALUE".equalsIgnoreCase(triggerType)) {
+                    // 字段值支持字符串比较
+                    isAlarm = checkFieldValueAlarm(alarmConfig, resultSet, operator);
+                } else {
+                    // ROW_COUNT 和 FIELD_AGG 使用数值比较
+                    if (thresholdValue == null) {
+                        return;
+                    }
+                    currentValue = calculateTriggerValue(triggerType, alarmConfig, resultSet);
+                    if (currentValue != null) {
+                        isAlarm = CompareOperator.fromSymbol(operator).compare(currentValue, thresholdValue);
+                    }
+                }
+            } else {
+                return;
+            }
+
+            if (isAlarm) {
+                logger.warn("ALARM TRIGGERED for Task {}: type={}, operator={}",
+                        task.getName(), triggerType, operator);
+
+                // 构建告警上下文
+                AlarmContext context = new AlarmContext();
+                context.setTaskId(task.getId());
+                context.setTaskType("MONITOR_TASK");
+                context.setTaskName(task.getName());
+                context.setTriggerType(triggerType);
+                context.setOperator(operator);
+
+                // 设置数值（如果有）
+                if (currentValue != null) {
+                    context.setCurrentValue(currentValue);
+                }
+                if (thresholdValue != null) {
+                    context.setThresholdValue(thresholdValue);
+                }
+
+                // 设置告警模板ID
+                if (alarmConfig.getAlarmTemplateId() != null) {
+                    context.setAlarmTemplateId(alarmConfig.getAlarmTemplateId());
+                }
+
+                // 设置告警渠道
+                if (alarmConfig.getChannelIds() != null && !alarmConfig.getChannelIds().isEmpty()) {
+                    context.setChannelIds(alarmConfig.getChannelIds());
+                }
+
+                // 构建模板参数（DATASET 类型时从结果集提取）
+                if (resultSet != null && !resultSet.isEmpty()) {
+                    Map<String, Object> extraParams = buildTemplateParams(alarmConfig, resultSet);
+                    context.setExtraParams(extraParams);
+                }
+
+                alarmService.triggerAlarm(context);
+            } else {
+                // 值正常，恢复告警
+                alarmService.resolveAlarm(task.getId(), "MONITOR_TASK");
+            }
+
         } catch (Exception e) {
-            logger.error("Failed to parse alarm rule", e);
+            logger.error("Failed to check alarm for task {}: {}", task.getId(), e.getMessage());
+        }
+    }
+
+    /**
+     * 检查 FIELD_VALUE 类型的告警（支持字符串比较）
+     */
+    private boolean checkFieldValueAlarm(DatasetAlarmConfig config,
+                                         List<Map<String, Object>> resultSet, String operator) {
+
+        if (config.getTriggerField() == null || resultSet == null || resultSet.isEmpty()) {
+            return false;
+        }
+
+        Object fieldValue = resultSet.get(0).get(config.getTriggerField());
+        if (fieldValue == null) {
+            return false;
+        }
+
+        try {
+            CompareOperator op = CompareOperator.fromSymbol(operator);
+            return op.smartCompare(fieldValue, config.getThreshold(), config.getThresholdStr());
+        } catch (IllegalArgumentException e) {
+            logger.warn("Unknown operator for FIELD_VALUE: {}", operator);
+            return false;
+        }
+    }
+
+    /**
+     * 根据触发类型计算触发值
+     */
+    private Double calculateTriggerValue(String triggerType,
+                                         com.monitor.backend.dto.DatasetAlarmConfig config,
+                                         List<Map<String, Object>> resultSet) {
+
+        if (resultSet == null) {
+            return null;
+        }
+
+        switch (triggerType.toUpperCase()) {
+            case "ROW_COUNT":
+                return (double) resultSet.size();
+
+            case "FIELD_VALUE":
+                // 检查第一行的指定字段值
+                if (config.getTriggerField() == null || resultSet.isEmpty()) {
+                    return null;
+                }
+                Object value = resultSet.get(0).get(config.getTriggerField());
+                return toDouble(value);
+
+            case "FIELD_AGG":
+                // 对指定字段进行聚合计算
+                if (config.getTriggerField() == null || resultSet.isEmpty()) {
+                    return null;
+                }
+                return calculateAggregate(config.getAggregateMethod(), config.getTriggerField(), resultSet);
+
+            default:
+                logger.warn("Unknown trigger type: {}", triggerType);
+                return null;
+        }
+    }
+
+    /**
+     * 对结果集指定字段进行聚合计算
+     */
+    private Double calculateAggregate(String method, String field, List<Map<String, Object>> resultSet) {
+        if (method == null || field == null) {
+            return null;
+        }
+
+        double sum = 0;
+        int count = 0;
+        Double max = null;
+        Double min = null;
+
+        for (Map<String, Object> row : resultSet) {
+            Double val = toDouble(row.get(field));
+            if (val != null) {
+                sum += val;
+                count++;
+                if (max == null || val > max) max = val;
+                if (min == null || val < min) min = val;
+            }
+        }
+
+        if (count == 0) {
+            return null;
+        }
+
+        return switch (method.toUpperCase()) {
+            case "SUM" -> sum;
+            case "COUNT" -> (double) count;
+            case "AVG" -> sum / count;
+            case "MAX" -> max;
+            case "MIN" -> min;
+            default -> null;
+        };
+    }
+
+    /**
+     * 构建模板参数，将结果集中指定字段的值用分隔符连接
+     */
+    private Map<String, Object> buildTemplateParams(
+            com.monitor.backend.dto.DatasetAlarmConfig config,
+            List<Map<String, Object>> resultSet) {
+
+        Map<String, Object> params = new java.util.HashMap<>();
+
+        if (config.getTemplateFields() == null || config.getTemplateFields().isEmpty() || resultSet.isEmpty()) {
+            return params;
+        }
+
+        String separator = config.getFieldSeparator();
+        int maxRows = config.getMaxRows();
+
+        // 限制处理的行数
+        List<Map<String, Object>> limitedRows = resultSet.size() > maxRows
+                ? resultSet.subList(0, maxRows)
+                : resultSet;
+
+        // 为每个模板字段构建值列表
+        for (String field : config.getTemplateFields()) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < limitedRows.size(); i++) {
+                Object value = limitedRows.get(i).get(field);
+                if (i > 0) {
+                    sb.append(separator);
+                }
+                sb.append(value != null ? value.toString() : "");
+            }
+            params.put(field, sb.toString());
+        }
+
+        // 添加记录条数参数
+        params.put("rowCount", resultSet.size());
+        params.put("limitedRowCount", limitedRows.size());
+
+        return params;
+    }
+
+    /**
+     * 将对象转换为 Double
+     */
+    private Double toDouble(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+        try {
+            return Double.parseDouble(value.toString());
+        } catch (NumberFormatException e) {
+            return null;
         }
     }
 }
+

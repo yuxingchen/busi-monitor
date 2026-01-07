@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "build:dev": "vite build --mode development && npm run zip",
+    "build:prod": "vite build --mode production && npm run zip",
+    "preview": "vite preview",
+    "zip": "zip -r ~/Desktop/dist.zip dist"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",

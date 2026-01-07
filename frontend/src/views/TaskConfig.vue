@@ -352,25 +352,119 @@
 
             <!-- 3. 报警规则 -->
             <el-tab-pane label="报警规则">
-              <div style="display: flex; align-items: center; gap: 10px;">
-                <span>当</span>
-                <el-select v-model="alarmRule.field" placeholder="选择字段" style="width: 150px"
-                  v-if="form.resultType === 'DATASET'">
-                  <el-option v-for="field in resultFields" :key="field" :label="field" :value="field" />
-                </el-select>
-                <span v-else>查询结果</span>
+              <el-form-item label="启用告警">
+                <el-switch v-model="alarmConfig.enabled" />
+              </el-form-item>
 
-                <el-select v-model="alarmRule.operator" placeholder="操作符" style="width: 100px">
-                  <el-option label="大于 (>)" value=">" />
-                  <el-option label="大于等于 (>=)" value=">=" />
-                  <el-option label="小于 (<)" value="<" />
-                  <el-option label="小于等于 (<=)" value="<=" />
-                  <el-option label="等于 (=)" value="=" />
-                </el-select>
+              <template v-if="alarmConfig.enabled">
+                <!-- ========== 触发因子配置 ========== -->
+                <el-divider content-position="left">触发因子配置</el-divider>
 
-                <el-input-number v-model="alarmRule.value" placeholder="阈值" style="width: 150px" />
-                <span>时触发报警</span>
-              </div>
+                <!-- 触发条件类型 -->
+                <el-form-item label="触发条件" v-if="form.resultType === 'DATASET'">
+                  <el-radio-group v-model="alarmConfig.triggerType">
+                    <el-radio label="ROW_COUNT">记录条数</el-radio>
+                    <el-radio label="FIELD_VALUE">字段值</el-radio>
+                    <el-radio label="FIELD_AGG">字段聚合</el-radio>
+                  </el-radio-group>
+                </el-form-item>
+
+                <!-- 触发字段选择 (字段值/字段聚合时显示) -->
+                <el-form-item label="触发字段"
+                  v-if="form.resultType === 'DATASET' && (alarmConfig.triggerType === 'FIELD_VALUE' || alarmConfig.triggerType === 'FIELD_AGG')">
+                  <el-select v-model="alarmConfig.triggerField" placeholder="选择字段" style="width: 200px">
+                    <el-option v-for="field in resultFields" :key="field" :label="fieldAlias(field)" :value="field" />
+                  </el-select>
+                </el-form-item>
+
+                <!-- 聚合方式 (字段聚合时显示) -->
+                <el-form-item label="聚合方式"
+                  v-if="form.resultType === 'DATASET' && alarmConfig.triggerType === 'FIELD_AGG'">
+                  <el-radio-group v-model="alarmConfig.aggregateMethod">
+                    <el-radio-button label="SUM">求和</el-radio-button>
+                    <el-radio-button label="COUNT">计数</el-radio-button>
+                    <el-radio-button label="AVG">平均</el-radio-button>
+                    <el-radio-button label="MAX">最大</el-radio-button>
+                    <el-radio-button label="MIN">最小</el-radio-button>
+                  </el-radio-group>
+                </el-form-item>
+
+                <!-- 阈值条件 - 数值类型 (非 FIELD_VALUE 或聚合模式) -->
+                <el-form-item label="阈值条件" v-if="alarmConfig.triggerType !== 'FIELD_VALUE'">
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <span>当</span>
+                    <span v-if="form.resultType === 'SCALAR'">查询结果</span>
+                    <span v-else>{{ getTriggerTypeLabel() }}</span>
+                    <el-select v-model="alarmConfig.operator" placeholder="操作符" style="width: 120px">
+                      <el-option label="大于 (>)" value=">" />
+                      <el-option label="大于等于 (>=)" value=">=" />
+                      <el-option label="小于 (<)" value="<" />
+                      <el-option label="小于等于 (<=)" value="<=" />
+                      <el-option label="等于 (=)" value="=" />
+                    </el-select>
+                    <el-input-number v-model="alarmConfig.threshold" placeholder="阈值" style="width: 150px" />
+                    <span>时触发报警</span>
+                  </div>
+                </el-form-item>
+
+                <!-- 阈值条件 - 字符串类型 (FIELD_VALUE 模式) -->
+                <el-form-item label="阈值条件" v-if="alarmConfig.triggerType === 'FIELD_VALUE'">
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <span>当字段值</span>
+                    <el-select v-model="alarmConfig.operator" placeholder="操作符" style="width: 150px">
+                      <el-option label="等于 (=)" value="=" />
+                      <el-option label="不等于 (!=)" value="!=" />
+                      <el-option label="包含" value="CONTAINS" />
+                      <el-option label="不包含" value="NOT_CONTAINS" />
+                      <el-option label="大于 (>)" value=">" />
+                      <el-option label="大于等于 (>=)" value=">=" />
+                      <el-option label="小于 (<)" value="<" />
+                      <el-option label="小于等于 (<=)" value="<=" />
+                    </el-select>
+                    <el-input v-model="alarmConfig.thresholdStr" placeholder="阈值（字符串或数值）" style="width: 200px" />
+                    <span>时触发报警</span>
+                  </div>
+                  <div class="form-tip-block">提示：支持字符串比较（包含/等于）和数值比较（大于/小于等），系统会自动判断</div>
+                </el-form-item>
+
+                <!-- ========== 监控模板配置 ========== -->
+                <el-divider content-position="left">监控模板配置</el-divider>
+
+                <!-- 告警模板选择 -->
+                <el-form-item label="告警模板">
+                  <el-select v-model="alarmConfig.alarmTemplateId" placeholder="选择告警模板" clearable style="width: 300px">
+                    <el-option v-for="t in alarmTemplates" :key="t.id" :label="t.name" :value="t.id" />
+                  </el-select>
+                </el-form-item>
+
+                <!-- 告警渠道选择 -->
+                <el-form-item label="告警渠道">
+                  <el-checkbox-group v-model="alarmConfig.channelIds">
+                    <el-checkbox v-for="ch in alarmChannels" :key="ch.id" :label="ch.id">{{ ch.name }}</el-checkbox>
+                  </el-checkbox-group>
+                </el-form-item>
+
+                <!-- DATASET 模板参数配置 -->
+                <template v-if="form.resultType === 'DATASET'">
+                  <el-form-item label="传递字段">
+                    <el-select v-model="alarmConfig.templateFields" multiple placeholder="选择要传递到模板的字段"
+                      style="width: 400px">
+                      <el-option v-for="field in resultFields" :key="field" :label="fieldAlias(field)" :value="field" />
+                    </el-select>
+                    <div class="form-tip-block">选中的字段值将作为 ${字段名} 传递给告警模板</div>
+                  </el-form-item>
+
+                  <el-form-item label="最大条数">
+                    <el-input-number v-model="alarmConfig.maxRows" :min="1" :max="100" style="width: 150px" />
+                    <span style="margin-left: 10px; color: var(--theme-text-secondary);">当结果集超过此条数时，仅取前N条数据传递给模板</span>
+                  </el-form-item>
+
+                  <el-form-item label="字段分隔符">
+                    <el-input v-model="alarmConfig.fieldSeparator" placeholder="," style="width: 100px" />
+                    <span style="margin-left: 10px; color: var(--theme-text-secondary);">多条数据的字段值用此分隔符连接</span>
+                  </el-form-item>
+                </template>
+              </template>
             </el-tab-pane>
           </el-tabs>
         </div>
@@ -395,6 +489,8 @@ import { Plus, QuestionFilled, Clock } from '@element-plus/icons-vue'
 const tableData = ref([])
 const dataSources = ref([])
 const workflows = ref([])  // 工作流列表
+const alarmTemplates = ref([])  // 告警模板列表
+const alarmChannels = ref([])   // 告警渠道列表
 const dialogVisible = ref(false)
 const testResult = ref(null)
 const cronPreset = ref('')
@@ -469,22 +565,53 @@ const chartConfig = reactive({
   indexFields: []
 })
 
+// 旧的 alarmRule (保留向后兼容)
 const alarmRule = reactive({
   field: '',
   operator: '>',
   value: 0
 })
 
+// 新的 DATASET 告警配置
+const alarmConfig = reactive({
+  enabled: false,
+  alarmTemplateId: null,
+  channelIds: [],
+  triggerType: 'ROW_COUNT', // ROW_COUNT | FIELD_VALUE | FIELD_AGG
+  triggerField: '',
+  aggregateMethod: 'SUM',
+  operator: '>',
+  threshold: 0,
+  thresholdStr: '',  // 字符串阈值（FIELD_VALUE 时使用）
+  templateFields: [],
+  maxRows: 10,
+  fieldSeparator: ','
+})
+
+// 获取触发条件类型的标签
+const getTriggerTypeLabel = () => {
+  switch (alarmConfig.triggerType) {
+    case 'ROW_COUNT': return '记录条数'
+    case 'FIELD_VALUE': return alarmConfig.triggerField ? `字段 ${alarmConfig.triggerField}` : '字段值'
+    case 'FIELD_AGG': return alarmConfig.triggerField ? `${alarmConfig.aggregateMethod}(${alarmConfig.triggerField})` : '聚合值'
+    default: return '查询结果'
+  }
+}
+
 const loadData = async () => {
   try {
-    const [tasks, dss, wfs] = await Promise.all([
+    const [tasks, dss, wfs, templates, channels] = await Promise.all([
       request.get('/task'),
       request.get('/datasource'),
-      request.get('/workflows')  // 加载工作流列表
+      request.get('/workflows'),  // 加载工作流列表
+      request.get('/alarm/template'),  // 加载告警模板
+      request.get('/alarm/channel')    // 加载告警渠道
     ])
     tableData.value = tasks
     dataSources.value = dss
     workflows.value = wfs || []
+    alarmTemplates.value = templates || []
+    alarmChannels.value = channels || []
   } catch (e) { }
 }
 
@@ -555,9 +682,25 @@ const handleAdd = () => {
   // Reset refined configs
   Object.assign(chartConfig, {
     type: 'bar', xAxis: '', yAxis: '', columns: [], fieldAlias: {},
-    outputTable: '', indexFields: []
+    outputTable: '', indexFields: [], sourceType: 'SQL', workflowId: null, queryLimit: 0
   })
   Object.assign(alarmRule, { field: '', operator: '>', value: 0 })
+
+  // Reset alarm config
+  Object.assign(alarmConfig, {
+    enabled: false,
+    alarmTemplateId: null,
+    channelIds: [],
+    triggerType: 'ROW_COUNT',
+    triggerField: '',
+    aggregateMethod: 'SUM',
+    operator: '>',
+    threshold: 0,
+    thresholdStr: '',
+    templateFields: [],
+    maxRows: 10,
+    fieldSeparator: ','
+  })
 
   testResult.value = null
   dialogVisible.value = true
@@ -612,6 +755,41 @@ const handleEdit = (row) => {
     } catch (e) { }
   } else {
     Object.assign(alarmRule, { field: '', operator: '>', value: 0 })
+  }
+
+  // Parse Alarm Config from alarmConfig field
+  if (row.alarmConfig) {
+    try {
+      const cfg = JSON.parse(row.alarmConfig)
+      Object.assign(alarmConfig, {
+        enabled: cfg.enabled || false,
+        alarmTemplateId: cfg.alarmTemplateId || null,
+        channelIds: cfg.channelIds || [],
+        triggerType: cfg.triggerType || 'ROW_COUNT',
+        triggerField: cfg.triggerField || '',
+        aggregateMethod: cfg.aggregateMethod || 'SUM',
+        operator: cfg.operator || '>',
+        threshold: cfg.threshold || 0,
+        thresholdStr: cfg.thresholdStr || '',
+        templateFields: cfg.templateFields || [],
+        maxRows: cfg.maxRows || 10,
+        fieldSeparator: cfg.fieldSeparator || ','
+      })
+    } catch (e) {
+      // Reset if parse error
+      Object.assign(alarmConfig, {
+        enabled: false, alarmTemplateId: null, channelIds: [], triggerType: 'ROW_COUNT',
+        triggerField: '', aggregateMethod: 'SUM', operator: '>', threshold: 0,
+        thresholdStr: '', templateFields: [], maxRows: 10, fieldSeparator: ','
+      })
+    }
+  } else {
+    // Reset if no alarm config
+    Object.assign(alarmConfig, {
+      enabled: false, alarmTemplateId: null, channelIds: [], triggerType: 'ROW_COUNT',
+      triggerField: '', aggregateMethod: 'SUM', operator: '>', threshold: 0,
+      thresholdStr: '', templateFields: [], maxRows: 10, fieldSeparator: ','
+    })
   }
 
   testResult.value = null
@@ -672,12 +850,11 @@ const testSql = async () => {
 }
 
 const handleSave = async () => {
+  // 图表配置单独保存
   form.chartConfig = JSON.stringify(chartConfig)
 
-  // Minimal alarm rule save
-  if (alarmRule.operator) {
-    form.alarmThresholdRule = JSON.stringify(alarmRule)
-  }
+  // 告警配置单独保存到 alarmConfig 字段
+  form.alarmConfig = JSON.stringify(alarmConfig)
 
   if (form.id) {
     await request.put('/task', form)
