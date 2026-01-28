@@ -198,6 +198,14 @@
                       <td>昨天日期</td>
                     </tr>
                     <tr>
+                      <td><code>${yesterdayStart}</code></td>
+                      <td>昨天 00:00:00</td>
+                    </tr>
+                    <tr>
+                      <td><code>${yesterdayEnd}</code></td>
+                      <td>昨天 23:59:59</td>
+                    </tr>
+                    <tr>
                       <td><code>${lastRunTime}</code></td>
                       <td>上次执行时间</td>
                     </tr>
@@ -485,6 +493,7 @@ import { ref, onMounted, reactive, computed, watch } from 'vue'
 import request from '../api/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, QuestionFilled, Clock } from '@element-plus/icons-vue'
+import { toJsonClean } from '../api/utils'
 
 const tableData = ref([])
 const dataSources = ref([])
@@ -851,10 +860,10 @@ const testSql = async () => {
 
 const handleSave = async () => {
   // 图表配置单独保存
-  form.chartConfig = JSON.stringify(chartConfig)
+  form.chartConfig = toJsonClean(chartConfig)
 
   // 告警配置单独保存到 alarmConfig 字段
-  form.alarmConfig = JSON.stringify(alarmConfig)
+  form.alarmConfig = toJsonClean(alarmConfig)
 
   if (form.id) {
     await request.put('/task', form)

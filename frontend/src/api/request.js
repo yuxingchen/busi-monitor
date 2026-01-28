@@ -1,5 +1,6 @@
 import axios from 'axios'
-import { ElMessage } from 'element-plus'
+import {ElMessage} from 'element-plus'
+import {removeEmpty} from './utils'
 
 /**
  * API前缀配置
@@ -15,7 +16,7 @@ const request = axios.create({
     timeout: 30000
 })
 
-// 请求拦截器 - 添加Token
+// 请求拦截器 - 添加Token + 过滤空字段
 request.interceptors.request.use(
     config => {
         const token = localStorage.getItem('token')
@@ -23,9 +24,18 @@ request.interceptors.request.use(
             // 同时设置两个头，确保兼容性：
             // - Authorization: 标准 Bearer Token（本地开发使用）
             // - X-Auth-Token: 自定义头（Nginx auth_basic 环境使用，避免 Authorization 被拦截）
-            config.headers['Authorization'] = `Bearer ${token}`
             config.headers['X-Auth-Token'] = token
         }
+        
+        // 过滤请求体中的空字段（仅对 POST/PUT/PATCH 请求的 JSON 数据生效）
+        if (config.data && typeof config.data === 'object' && !Array.isArray(config.data)) {
+            const contentType = config.headers['Content-Type'] || config.headers['content-type'] || ''
+            // 仅处理 JSON 请求，不处理 FormData 等
+            if (!contentType.includes('multipart/form-data')) {
+                config.data = removeEmpty(config.data)
+            }
+        }
+        
         return config
     },
     error => {

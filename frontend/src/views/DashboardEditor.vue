@@ -329,6 +329,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, View, Check, Setting, InfoFilled, DataLine, Clock, Document, Edit, Delete, Grid } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import * as echarts from 'echarts'
+import { toJsonClean } from '../api/utils'
 
 // State
 const dashboardList = ref([])
@@ -1160,7 +1161,7 @@ const saveLayout = async () => {
         gridY: item.y,
         gridW: item.w,
         gridH: item.h,
-        displayConfig: JSON.stringify(displayConfig)
+        displayConfig: toJsonClean(displayConfig)
       }
     })
 

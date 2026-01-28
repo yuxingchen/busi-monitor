@@ -344,6 +344,7 @@ import { serverAssetApi, serverGroupApi, serverMonitorTaskApi } from '../api/ser
 import { alarmChannelApi, alarmTemplateApi } from '../api/alarm'
 import { monitorTemplateApi } from '../api/template'
 import MonitorIcon from '../components/MonitorIcon.vue'
+import { toJsonClean } from '../api/utils'
 
 const activeTab = ref('list')
 const servers = ref([])
@@ -549,14 +550,14 @@ const saveTask = async () => {
       ? editingTask.alarmChannelIds.join(',')
       : null
     // 将 thresholdConfig 序列化为 JSON 字符串
-    editingTask.thresholdRule = JSON.stringify({
+    editingTask.thresholdRule = toJsonClean({
       operator: thresholdConfig.operator,
       value: thresholdConfig.value,
       level: thresholdConfig.level
     })
     // 序列化参数
     if (Object.keys(taskParams).length > 0) {
-      editingTask.params = JSON.stringify(taskParams)
+      editingTask.params = toJsonClean(taskParams)
     } else {
       editingTask.params = null
     }

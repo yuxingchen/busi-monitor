@@ -7,7 +7,8 @@
           <el-button type="primary" @click="showChannelDialog()">
             <el-icon>
               <Plus />
-            </el-icon> 新建通道
+            </el-icon>
+            新建通道
           </el-button>
         </div>
 
@@ -40,7 +41,8 @@
           <el-button type="primary" @click="showTemplateDialog()">
             <el-icon>
               <Plus />
-            </el-icon> 新建模板
+            </el-icon>
+            新建模板
           </el-button>
         </div>
 
@@ -67,7 +69,11 @@
       <el-tab-pane label="报警历史" name="history">
         <el-table :data="history" stripe>
           <el-table-column prop="triggerTime" label="触发时间" width="180" />
-          <el-table-column prop="taskId" label="任务ID" width="80" />
+          <el-table-column label="任务" width="150">
+            <template #default="{ row }">
+              {{ taskNameMap[row.taskId] || `任务#${row.taskId}` }}
+            </template>
+          </el-table-column>
           <el-table-column prop="triggerType" label="触发类型" width="100">
             <template #default="{ row }">
               {{ getTriggerTypeName(row.triggerType) }}
@@ -103,7 +109,8 @@
           <el-button type="primary" @click="loadActiveAlarms">
             <el-icon>
               <Refresh />
-            </el-icon> 刷新
+            </el-icon>
+            刷新
           </el-button>
         </div>
 
@@ -111,8 +118,8 @@
           <el-table-column prop="id" label="ID" width="70" />
           <el-table-column label="级别" width="100">
             <template #default="{ row }">
-              <el-tag :type="row.level === 'CRITICAL' ? 'danger' : 'warning'">
-                {{ row.level }}
+              <el-tag :type="getAlarmLevelTag(row.level)">
+                {{ getAlarmLevelName(row.level) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -121,17 +128,27 @@
               <el-tag :type="getAlarmStatusType(row.status)">{{ getAlarmStatusName(row.status) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="taskType" label="任务类型" width="120" />
-          <el-table-column prop="taskId" label="任务ID" width="80" />
+          <el-table-column prop="taskType" label="任务类型" width="120">
+            <template #default="{ row }">
+              {{ getMonitorTaskTypeName(row.taskType) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="任务" width="150">
+            <template #default="{ row }">
+              {{ taskNameMap[row.taskId] || `任务#${row.taskId}` }}
+            </template>
+          </el-table-column>
           <el-table-column prop="message" label="告警消息" show-overflow-tooltip />
           <el-table-column prop="triggerCount" label="触发次数" width="90" />
           <el-table-column prop="firstTriggerTime" label="首次触发" width="180" />
           <el-table-column label="操作" width="180">
             <template #default="{ row }">
-              <el-button size="small" type="primary" :disabled="row.status !== 'FIRING'"
-                @click="acknowledgeAlarm(row.id)">确认</el-button>
-              <el-button size="small" type="warning" :disabled="row.status === 'SUPPRESSED'"
-                @click="showSuppressDialog(row)">抑制</el-button>
+              <el-button size="small" type="primary" :disabled="row.status !== AlarmStatusKey.FIRING"
+                @click="acknowledgeAlarm(row.id)">确认
+              </el-button>
+              <el-button size="small" type="warning" :disabled="row.status === AlarmStatusKey.SUPPRESSED"
+                @click="showSuppressDialog(row)">抑制
+              </el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -146,11 +163,7 @@
         </el-form-item>
         <el-form-item label="通道类型" required>
           <el-select v-model="editingChannel.type" @change="onChannelTypeChange">
-            <el-option label="邮件" value="EMAIL" />
-            <el-option label="短信" value="SMS" />
-            <el-option label="钉钉机器人" value="DINGTALK" />
-            <el-option label="企业微信" value="WECHAT" />
-            <el-option label="系统公告" value="ANNOUNCEMENT" />
+            <el-option v-for="opt in channelTypeOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="启用状态">
@@ -160,7 +173,7 @@
         <!-- 根据类型显示不同配置 -->
         <el-divider content-position="left">通道配置</el-divider>
 
-        <template v-if="editingChannel.type === 'EMAIL'">
+        <template v-if="editingChannel.type === ChannelTypeKey.EMAIL">
           <el-form-item label="SMTP服务器">
             <el-input v-model="channelConfig.host" placeholder="smtp.example.com" />
           </el-form-item>
@@ -178,7 +191,7 @@
           </el-form-item>
         </template>
 
-        <template v-else-if="editingChannel.type === 'DINGTALK'">
+        <template v-else-if="editingChannel.type === ChannelTypeKey.DINGTALK">
           <el-form-item label="Webhook">
             <el-input v-model="channelConfig.webhook"
               placeholder="https://oapi.dingtalk.com/robot/send?access_token=xxx" />
@@ -188,14 +201,14 @@
           </el-form-item>
         </template>
 
-        <template v-else-if="editingChannel.type === 'WECHAT'">
+        <template v-else-if="editingChannel.type === ChannelTypeKey.WECHAT">
           <el-form-item label="Webhook">
             <el-input v-model="channelConfig.webhook"
               placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx" />
           </el-form-item>
         </template>
 
-        <template v-else-if="editingChannel.type === 'SMS'">
+        <template v-else-if="editingChannel.type === ChannelTypeKey.SMS">
           <el-form-item label="接口地址" required>
             <el-input v-model="channelConfig.apiUrl" placeholder="https://sms.api.com/send" />
           </el-form-item>
@@ -253,7 +266,7 @@
           </template>
         </template>
 
-        <template v-else-if="editingChannel.type === 'ANNOUNCEMENT'">
+        <template v-else-if="editingChannel.type === ChannelTypeKey.ANNOUNCEMENT">
           <el-form-item label="显示时长(秒)">
             <el-input-number v-model="channelConfig.displayDuration" :min="60" :max="86400" />
           </el-form-item>
@@ -284,12 +297,11 @@
         </el-form-item>
         <el-form-item label="内容格式">
           <el-select v-model="editingTemplate.contentType" style="width: 150px">
-            <el-option label="纯文本" value="TEXT" />
-            <el-option label="Markdown" value="MARKDOWN" />
+            <el-option v-for="opt in contentTypeOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="内容模板" required>
-          <template v-if="editingTemplate.contentType === 'MARKDOWN'">
+          <template v-if="editingTemplate.contentType === ContentTypeKey.MARKDOWN">
             <div class="md-editor-wrapper">
               <MdEditor v-model="editingTemplate.content" :preview="false"
                 :toolbarsExclude="['github', 'save', 'mermaid', 'katex']"
@@ -336,6 +348,27 @@ import request from '../api/request'
 
 import { useRoute } from 'vue-router'
 import { encryptPassword } from '../utils/crypto'
+import {
+  getChannelTypeName,
+  getChannelTypeTag,
+  getTriggerTypeName,
+  getAlarmStatusName,
+  getAlarmStatusTag,
+  getAlarmLevelName,
+  getAlarmLevelTag,
+  channelTypeOptions,
+  contentTypeOptions,
+  ChannelTypeKey,
+  AlarmLevelKey,
+  AlarmStatusKey,
+  ContentTypeKey,
+  getMonitorTaskTypeName,
+  DEFAULT_CHANNEL,
+  getDefaultChannelConfig,
+  getFullChannelConfigDefaults
+} from '../utils/enums'
+import { preloadNames } from '../utils/nameResolver'
+import { toJsonClean } from '../api/utils'
 
 const route = useRoute()
 const activeTab = ref('channel')
@@ -346,6 +379,7 @@ const historyPage = ref(1)
 const historyPageSize = ref(20)
 const historyTotal = ref(0)
 const activeAlarms = ref([])
+const taskNameMap = ref({}) // 任务ID到名称的映射
 
 const channelDialogVisible = ref(false)
 const templateDialogVisible = ref(false)
@@ -353,7 +387,7 @@ const templateDialogVisible = ref(false)
 const editingChannel = reactive({
   id: null,
   name: '',
-  type: 'EMAIL',
+  type: ChannelTypeKey.EMAIL,
   isActive: 1,
   config: ''
 })
@@ -413,34 +447,21 @@ const allSignFields = computed(() => {
 const editingTemplate = reactive({
   id: null,
   name: '',
-  channelType: 'EMAIL',
+  channelType: ChannelTypeKey.EMAIL,
   subject: '',
   content: '',
-  contentType: 'TEXT',
+  contentType: ContentTypeKey.TEXT,
   isDefault: 0
 })
 
-const getChannelTypeName = (type) => {
-  const map = { EMAIL: '邮件', SMS: '短信', DINGTALK: '钉钉', WECHAT: '微信', ANNOUNCEMENT: '公告' }
-  return map[type] || type
-}
-
-const getChannelTypeTag = (type) => {
-  const map = { EMAIL: 'primary', SMS: 'success', DINGTALK: 'warning', WECHAT: 'success', ANNOUNCEMENT: 'info' }
-  return map[type] || ''
-}
-
-const getTriggerTypeName = (type) => {
-  const map = { THRESHOLD: '阈值', YOY: '同比', MOM: '环比' }
-  return map[type] || type
-}
+// 枚举转换方法已迁移到 utils/enums.js 统一管理
 
 const loadHistory = async () => {
   try {
     const res = await request.get('/alarm/history/page', {
       params: { page: historyPage.value, pageSize: historyPageSize.value }
     })
-    history.value = res.records || []
+    history.value = res.data || []
     historyTotal.value = res.total || 0
   } catch (e) {
     console.error(e)
@@ -462,8 +483,12 @@ const loadData = async () => {
 }
 
 const showChannelDialog = (channel = null) => {
+  // 完全重置配置，避免属性污染
+  smsParamsFields.value = []
+  Object.assign(channelConfig, getFullChannelConfigDefaults())
+
   if (channel) {
-    Object.assign(editingChannel, channel)
+    Object.assign(editingChannel, { ...DEFAULT_CHANNEL, ...channel })
     try {
       const cfg = JSON.parse(channel.config || '{}')
       // 处理 signFields 数组
@@ -472,14 +497,13 @@ const showChannelDialog = (channel = null) => {
       }
       Object.assign(channelConfig, cfg)
       // 解析 SMS 参数字段
-      if (channel.type === 'SMS') {
+      if (channel.type === ChannelTypeKey.SMS) {
         parseParamsFields()
       }
-    } catch (e) { }
+    } catch (e) {
+    }
   } else {
-    Object.assign(editingChannel, { id: null, name: '', type: 'EMAIL', isActive: 1 })
-    Object.assign(channelConfig, { host: '', port: 465, username: '', password: '', recipients: '' })
-    smsParamsFields.value = []
+    Object.assign(editingChannel, { ...DEFAULT_CHANNEL, type: ChannelTypeKey.EMAIL })
   }
   channelDialogVisible.value = true
 }
@@ -487,24 +511,8 @@ const showChannelDialog = (channel = null) => {
 const onChannelTypeChange = () => {
   // Reset config based on type
   smsParamsFields.value = []
-  if (editingChannel.type === 'EMAIL') {
-    Object.assign(channelConfig, { host: '', port: 465, username: '', password: '', recipients: '' })
-  } else if (editingChannel.type === 'DINGTALK') {
-    Object.assign(channelConfig, { webhook: '', secret: '' })
-  } else if (editingChannel.type === 'WECHAT') {
-    Object.assign(channelConfig, { webhook: '' })
-  } else if (editingChannel.type === 'SMS') {
-    Object.assign(channelConfig, {
-      apiUrl: '',
-      phones: '',
-      paramsTemplate: '',
-      signMethod: 'NONE',
-      signKey: '',
-      signFields: []
-    })
-  } else {
-    Object.assign(channelConfig, { displayDuration: 3600, level: 'warning' })
-  }
+  Object.assign(channelConfig, getFullChannelConfigDefaults())
+  Object.assign(channelConfig, getDefaultChannelConfig(editingChannel.type))
 }
 
 const saveChannel = async () => {
@@ -512,7 +520,7 @@ const saveChannel = async () => {
   const configToSave = { ...channelConfig }
 
   // SMS 类型特殊处理
-  if (editingChannel.type === 'SMS') {
+  if (editingChannel.type === ChannelTypeKey.SMS) {
     // signFields 转为逗号分隔字符串
     if (Array.isArray(configToSave.signFields)) {
       configToSave.signFields = configToSave.signFields.join(',')
@@ -523,7 +531,7 @@ const saveChannel = async () => {
     }
   }
 
-  editingChannel.config = JSON.stringify(configToSave)
+  editingChannel.config = toJsonClean(configToSave)
   try {
     if (editingChannel.id) {
       await request.put('/alarm/channel', editingChannel)
@@ -552,9 +560,17 @@ const deleteChannel = async (channel) => {
 const showTemplateDialog = (template = null) => {
   if (template) {
     // 编辑时，如果没有 contentType 字段，默认设为 TEXT
-    Object.assign(editingTemplate, { contentType: 'TEXT', ...template })
+    Object.assign(editingTemplate, { contentType: ContentTypeKey.TEXT, ...template })
   } else {
-    Object.assign(editingTemplate, { id: null, name: '', channelType: 'EMAIL', subject: '', content: '', contentType: 'TEXT', isDefault: 0 })
+    Object.assign(editingTemplate, {
+      id: null,
+      name: '',
+      channelType: ChannelTypeKey.EMAIL,
+      subject: '',
+      content: '',
+      contentType: ContentTypeKey.TEXT,
+      isDefault: 0
+    })
   }
   templateDialogVisible.value = true
 }
@@ -583,15 +599,8 @@ const deleteTemplate = async (template) => {
 
 // ============ 活跃告警相关 ============
 
-const getAlarmStatusType = (status) => {
-  const map = { FIRING: 'danger', ACKNOWLEDGED: 'warning', SUPPRESSED: 'info', RESOLVED: 'success' }
-  return map[status] || ''
-}
-
-const getAlarmStatusName = (status) => {
-  const map = { FIRING: '触发中', ACKNOWLEDGED: '已确认', SUPPRESSED: '已抑制', RESOLVED: '已恢复' }
-  return map[status] || status
-}
+// 告警状态转换方法已迁移到 utils/enums.js 统一管理
+const getAlarmStatusType = getAlarmStatusTag
 
 const loadActiveAlarms = async () => {
   try {
@@ -629,7 +638,19 @@ const showSuppressDialog = async (alarm) => {
 // 定时刷新活跃告警（App.vue 已全局处理 WebSocket 通知）
 let refreshTimer = null
 
-onMounted(() => {
+onMounted(async () => {
+  // 预加载任务名称映射
+  await preloadNames('tasks')
+  // 获取任务列表并构建名称映射
+  try {
+    const tasks = await request.get('/task')
+    tasks.forEach(t => {
+      taskNameMap.value[t.id] = t.name
+    })
+  } catch (e) {
+    console.error('加载任务列表失败:', e)
+  }
+
   loadData()
   loadActiveAlarms()
 

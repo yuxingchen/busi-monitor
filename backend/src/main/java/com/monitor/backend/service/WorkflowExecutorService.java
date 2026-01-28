@@ -13,6 +13,7 @@ import com.monitor.backend.entity.Workflow;
 import com.monitor.backend.entity.WorkflowExecution;
 import com.monitor.backend.entity.WorkflowStep;
 import com.monitor.backend.enums.ExecutionStatus;
+import com.monitor.backend.enums.AggregateMethod;
 import com.monitor.backend.enums.JoinType;
 import com.monitor.backend.enums.LoopSourceType;
 import com.monitor.backend.enums.WorkflowStepType;
@@ -1026,7 +1027,15 @@ public class WorkflowExecutorService {
             context.remove(LoopContextKeys.TOTAL);
 
             logger.info("LOOP 步骤 {} 完成，共产生 {} 条结果", step.getName(), allResults.size());
-            return allResults;
+            
+            // 聚合处理
+            List<Map<String, Object>> finalResults = processAggregation(allResults, configMap);
+            
+            if (finalResults.size() != allResults.size()) {
+                logger.info("LOOP 步骤 {} 聚合后: {} 条 -> {} 条", step.getName(), allResults.size(), finalResults.size());
+            }
+            
+            return finalResults;
 
         } catch (Exception e) {
             logger.error("执行 LOOP 步骤失败: {}", e.getMessage());
@@ -1093,6 +1102,161 @@ public class WorkflowExecutorService {
             logger.error("LOOP批处理迭代执行失败: {}", e.getMessage());
             // 降级为普通执行
             return sqlExecutor.executeQuery(step.getDatasourceId(), sql);
+        }
+    }
+
+    /**
+     * 处理聚合配置
+     * 支持按字段分组 + 聚合函数（SUM/COUNT/AVG/MAX/MIN）
+     */
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> processAggregation(List<Map<String, Object>> results, Map<String, Object> configMap) {
+        Map<String, Object> aggregateConfig = (Map<String, Object>) configMap.get(ConfigKeys.AGGREGATE);
+        if (aggregateConfig == null) {
+            return results;
+        }
+        
+        Boolean enabled = (Boolean) aggregateConfig.get(ConfigKeys.AGGREGATE_ENABLED);
+        if (enabled == null || !enabled) {
+            return results;
+        }
+        
+        List<String> groupByFields = (List<String>) aggregateConfig.get(ConfigKeys.GROUP_BY_FIELDS);
+        List<Map<String, Object>> aggregateFields = (List<Map<String, Object>>) aggregateConfig.get(ConfigKeys.AGGREGATE_FIELDS);
+        
+        if (aggregateFields == null || aggregateFields.isEmpty()) {
+            return results;
+        }
+        
+        // 按分组字段进行分组
+        Map<String, List<Map<String, Object>>> groups = new LinkedHashMap<>();
+        for (Map<String, Object> row : results) {
+            String groupKey = buildGroupKey(row, groupByFields);
+            groups.computeIfAbsent(groupKey, k -> new ArrayList<>()).add(row);
+        }
+        
+        // 对每组应用聚合函数
+        List<Map<String, Object>> aggregatedResults = new ArrayList<>();
+        for (Map.Entry<String, List<Map<String, Object>>> entry : groups.entrySet()) {
+            List<Map<String, Object>> groupRows = entry.getValue();
+            Map<String, Object> aggregatedRow = new LinkedHashMap<>();
+            
+            // 添加分组字段值
+            if (groupByFields != null && !groupByFields.isEmpty() && !groupRows.isEmpty()) {
+                Map<String, Object> firstRow = groupRows.get(0);
+                for (String field : groupByFields) {
+                    aggregatedRow.put(field, firstRow.get(field));
+                }
+            }
+            
+            // 应用聚合函数
+            for (Map<String, Object> aggFieldConfig : aggregateFields) {
+                String field = (String) aggFieldConfig.get(ConfigKeys.AGGREGATE_FIELD);
+                String method = (String) aggFieldConfig.get(ConfigKeys.AGGREGATE_METHOD);
+                String alias = (String) aggFieldConfig.get(ConfigKeys.AGGREGATE_ALIAS);
+                
+                if (alias == null || alias.isBlank()) {
+                    alias = field;
+                }
+                
+                Object aggregatedValue = applyAggregateMethod(groupRows, field, method);
+                aggregatedRow.put(alias, aggregatedValue);
+            }
+            
+            aggregatedResults.add(aggregatedRow);
+        }
+        
+        return aggregatedResults;
+    }
+    
+    /**
+     * 构建分组键
+     */
+    private String buildGroupKey(Map<String, Object> row, List<String> groupByFields) {
+        if (groupByFields == null || groupByFields.isEmpty()) {
+            return "_ALL_";
+        }
+        // 单字段分组
+        if (groupByFields.size() == 1){
+            Object value = row.get(groupByFields.get(0));
+            return value == null ? "NULL" : value.toString();
+        }
+        // 多字段分组
+        StringBuilder sb = new StringBuilder();
+        for (String field : groupByFields) {
+            Object value = row.get(field);
+            sb.append(value == null ? "NULL" : value.toString()).append("|");
+        }
+        return sb.toString();
+    }
+    
+    /**
+     * 应用聚合方法
+     */
+    private Object applyAggregateMethod(List<Map<String, Object>> rows, String field, String method) {
+        AggregateMethod aggMethod = AggregateMethod.fromCode(method);
+        if (aggMethod == null) {
+            aggMethod = AggregateMethod.COUNT;
+        }
+
+        return switch (aggMethod) {
+            case SUM -> toIntegerIfPossible(rows.stream()
+                    .map(r -> r.get(field))
+                    .filter(Objects::nonNull)
+                    .mapToDouble(this::toDouble)
+                    .sum());
+            case AVG -> toIntegerIfPossible(rows.stream()
+                    .map(r -> r.get(field))
+                    .filter(Objects::nonNull)
+                    .mapToDouble(this::toDouble)
+                    .average()
+                    .orElse(0.0));
+            case MAX -> toIntegerIfPossible(rows.stream()
+                    .map(r -> r.get(field))
+                    .filter(Objects::nonNull)
+                    .mapToDouble(this::toDouble)
+                    .max()
+                    .orElse(0.0));
+            case MIN -> toIntegerIfPossible(rows.stream()
+                    .map(r -> r.get(field))
+                    .filter(Objects::nonNull)
+                    .mapToDouble(this::toDouble)
+                    .min()
+                    .orElse(0.0));
+            default -> rows.size();
+        };
+    }
+
+
+    /**
+     * 如果double值是整数，则转换为整数类型返回
+     * 
+     * @param value 待转换的double值
+     * @return 如果是整数且在int范围内返回Integer，在long范围内返回Long，否则返回Double
+     */
+    private Number toIntegerIfPossible(double value) {
+        if (value != Math.floor(value) || Double.isInfinite(value)) {
+            return value;
+        }
+        if (value >= Integer.MIN_VALUE && value <= Integer.MAX_VALUE) {
+            return (int) value;
+        }
+        if (value >= Long.MIN_VALUE && value <= Long.MAX_VALUE) {
+            return (long) value;
+        }
+        return value;
+    }
+
+    /**
+     * 转换为double
+     */
+    private double toDouble(Object value) {
+        if (value == null) return 0.0;
+        if (value instanceof Number) return ((Number) value).doubleValue();
+        try {
+            return Double.parseDouble(value.toString());
+        } catch (NumberFormatException e) {
+            return 0.0;
         }
     }
 

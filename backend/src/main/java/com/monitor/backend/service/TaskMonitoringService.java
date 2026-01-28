@@ -4,9 +4,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.monitor.backend.alarm.AlarmContext;
 import com.monitor.backend.alarm.AlarmService;
 import com.monitor.backend.dto.DatasetAlarmConfig;
+import com.monitor.backend.enums.AggregateMethod;
+import com.monitor.backend.enums.AlarmTriggerType;
 import com.monitor.backend.enums.CompareOperator;
 import com.monitor.backend.entity.MonitorRecord;
 import com.monitor.backend.entity.MonitorTask;
+import com.monitor.backend.enums.MonitorTaskType;
 import com.monitor.backend.mapper.MonitorRecordMapper;
 import com.monitor.backend.mapper.MonitorTaskMapper;
 import com.monitor.backend.util.DateTimeUtils;
@@ -190,7 +193,7 @@ public class TaskMonitoringService {
             }
 
             boolean isAlarm = false;
-            String triggerType = alarmConfig.getTriggerType();
+            AlarmTriggerType triggerType = AlarmTriggerType.fromCode(alarmConfig.getTriggerType());
             Double currentValue = null;
             Double thresholdValue = alarmConfig.getThreshold();
 
@@ -198,7 +201,7 @@ public class TaskMonitoringService {
             if (scalarValue != null) {
                 // SCALAR 类型：直接使用查询结果值
                 currentValue = scalarValue;
-                triggerType = "THRESHOLD";  // SCALAR 使用阈值触发
+                triggerType = AlarmTriggerType.THRESHOLD;  // SCALAR 使用阈值触发
                 if (thresholdValue != null) {
                     isAlarm = CompareOperator.fromSymbol(operator).compare(scalarValue, thresholdValue);
                 }
@@ -208,7 +211,7 @@ public class TaskMonitoringService {
                     return;
                 }
 
-                if ("FIELD_VALUE".equalsIgnoreCase(triggerType)) {
+                if (AlarmTriggerType.FIELD_VALUE.equals(triggerType)) {
                     // 字段值支持字符串比较
                     isAlarm = checkFieldValueAlarm(alarmConfig, resultSet, operator);
                 } else {
@@ -232,9 +235,9 @@ public class TaskMonitoringService {
                 // 构建告警上下文
                 AlarmContext context = new AlarmContext();
                 context.setTaskId(task.getId());
-                context.setTaskType("MONITOR_TASK");
+                context.setTaskType(MonitorTaskType.MONITOR_TASK.name());
                 context.setTaskName(task.getName());
-                context.setTriggerType(triggerType);
+                context.setTriggerType(triggerType.getCode());
                 context.setOperator(operator);
 
                 // 设置数值（如果有）
@@ -264,7 +267,7 @@ public class TaskMonitoringService {
                 alarmService.triggerAlarm(context);
             } else {
                 // 值正常，恢复告警
-                alarmService.resolveAlarm(task.getId(), "MONITOR_TASK");
+                alarmService.resolveAlarm(task.getId(), MonitorTaskType.MONITOR_TASK.name());
             }
 
         } catch (Exception e) {
@@ -299,7 +302,7 @@ public class TaskMonitoringService {
     /**
      * 根据触发类型计算触发值
      */
-    private Double calculateTriggerValue(String triggerType,
+    private Double calculateTriggerValue(AlarmTriggerType type,
                                          com.monitor.backend.dto.DatasetAlarmConfig config,
                                          List<Map<String, Object>> resultSet) {
 
@@ -307,29 +310,30 @@ public class TaskMonitoringService {
             return null;
         }
 
-        switch (triggerType.toUpperCase()) {
-            case "ROW_COUNT":
-                return (double) resultSet.size();
+        if (type == null) {
+            logger.warn("trigger type is null");
+            return null;
+        }
 
-            case "FIELD_VALUE":
+        return switch (type) {
+            case ROW_COUNT -> (double) resultSet.size();
+            case FIELD_VALUE -> {
                 // 检查第一行的指定字段值
                 if (config.getTriggerField() == null || resultSet.isEmpty()) {
-                    return null;
+                    yield null;
                 }
                 Object value = resultSet.get(0).get(config.getTriggerField());
-                return toDouble(value);
-
-            case "FIELD_AGG":
+                yield toDouble(value);
+            }
+            case FIELD_AGG -> {
                 // 对指定字段进行聚合计算
                 if (config.getTriggerField() == null || resultSet.isEmpty()) {
-                    return null;
+                    yield null;
                 }
-                return calculateAggregate(config.getAggregateMethod(), config.getTriggerField(), resultSet);
-
-            default:
-                logger.warn("Unknown trigger type: {}", triggerType);
-                return null;
-        }
+                yield calculateAggregate(config.getAggregateMethod(), config.getTriggerField(), resultSet);
+            }
+            default -> null;
+        };
     }
 
     /**
@@ -359,13 +363,17 @@ public class TaskMonitoringService {
             return null;
         }
 
-        return switch (method.toUpperCase()) {
-            case "SUM" -> sum;
-            case "COUNT" -> (double) count;
-            case "AVG" -> sum / count;
-            case "MAX" -> max;
-            case "MIN" -> min;
-            default -> null;
+        AggregateMethod aggMethod = AggregateMethod.fromCode(method);
+        if (aggMethod == null) {
+            return null;
+        }
+
+        return switch (aggMethod) {
+            case SUM -> sum;
+            case COUNT -> (double) count;
+            case AVG -> sum / count;
+            case MAX -> max;
+            case MIN -> min;
         };
     }
 

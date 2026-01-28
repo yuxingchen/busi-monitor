@@ -3,6 +3,7 @@ package com.monitor.backend.alarm;
 import com.monitor.backend.alarm.sender.AlarmSender;
 import com.monitor.backend.enums.AlarmLevel;
 import com.monitor.backend.enums.AlarmStatus;
+import com.monitor.backend.enums.AlarmTemplateVariable;
 import com.monitor.backend.enums.CompareOperator;
 import com.monitor.backend.entity.AlarmActive;
 import com.monitor.backend.entity.AlarmChannel;
@@ -194,41 +195,23 @@ public class AlarmService {
     }
 
     private String buildMessage(AlarmContext context) {
-        // 使用指定的告警模板ID
+        String template = null;
+
+        // 使用指定的告警模板
         if (context.getAlarmTemplateId() != null) {
-            AlarmTemplate template = templateMapper.findById(context.getAlarmTemplateId());
-            if (template != null && template.getContent() != null) {
-                return replaceVariables(template.getContent(), context);
+            AlarmTemplate alarmTemplate = templateMapper.findById(context.getAlarmTemplateId());
+            if (alarmTemplate != null) {
+                template = alarmTemplate.getContent();
             }
         }
-        // 默认消息格式
-        return String.format(
-                "%s: 当前值 %.2f %s 阈值 %.2f",
-                context.getTaskName() != null ? context.getTaskName() : "任务" + context.getTaskId(),
-                context.getCurrentValue(),
-                context.getOperator() != null ? context.getOperator() : CompareOperator.GREATER_THAN.getSymbol(),
-                context.getThresholdValue());
-    }
 
-    /**
-     * 替换模板中的变量
-     */
-    private String replaceVariables(String template, AlarmContext context) {
-        if (template == null) {
-            return "";
+        // 无模板时使用默认格式
+        if (template == null || template.isEmpty()) {
+            template = "${taskName}: 当前值 ${value} ${operator} 阈值 ${threshold}";
         }
-        String result = template;
+
         // 替换标准变量
-        result = result.replace("${serverName}", context.getTaskName() != null ? context.getTaskName() : "");
-        result = result.replace("${value}",
-                context.getCurrentValue() != null ? String.format("%.2f", context.getCurrentValue()) : "");
-        result = result.replace("${threshold}",
-                context.getThresholdValue() != null ? String.format("%.2f", context.getThresholdValue()) : "");
-        result = result.replace("${taskName}", context.getTaskName() != null ? context.getTaskName() : "");
-        result = result.replace("${taskId}", context.getTaskId() != null ? context.getTaskId().toString() : "");
-        result = result.replace("${operator}", context.getOperator() != null ? context.getOperator() : CompareOperator.GREATER_THAN.getSymbol());
-        result = result.replace("${triggerType}", context.getTriggerType() != null ? context.getTriggerType() : "");
-        result = result.replace("${level}", AlarmLevel.fromString(context.getLevel()).name());
+        String result = AlarmTemplateVariable.replaceAll(template, context);
 
         // 替换额外参数
         if (context.getExtraParams() != null) {
@@ -238,6 +221,7 @@ public class AlarmService {
                 result = result.replace(placeholder, value);
             }
         }
+
         return result;
     }
 

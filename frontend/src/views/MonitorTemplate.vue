@@ -131,6 +131,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import request from '../api/request'
 import MonitorIcon from '../components/MonitorIcon.vue'
+import { toJsonClean } from '../api/utils'
 
 const router = useRouter()
 
@@ -287,13 +288,13 @@ const createTask = async () => {
     let successCount = 0
 
     // 构建阈值规则 JSON
-    const thresholdRule = JSON.stringify({
+    const thresholdRule = toJsonClean({
       operator: '>',
       value: taskConfig.thresholdValue
     })
 
     // 序列化参数
-    const paramsJson = Object.keys(taskParams).length > 0 ? JSON.stringify(taskParams) : null
+    const paramsJson = Object.keys(taskParams).length > 0 ? toJsonClean(taskParams) : null
 
     // 告警通道ID列表（逗号分隔）
     const alarmChannels = taskConfig.channelIds.length > 0 ? taskConfig.channelIds.join(',') : null

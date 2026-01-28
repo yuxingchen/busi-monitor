@@ -79,6 +79,8 @@ public class SecurityConfig {
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         // 允许所有请求头
         configuration.setAllowedHeaders(List.of("*"));
+        // 允许的响应头
+        configuration.setExposedHeaders(List.of("Authorization", "Content-Type"));
         // 允许携带凭证（cookies, authorization headers）
         configuration.setAllowCredentials(true);
         // 预检请求缓存时间

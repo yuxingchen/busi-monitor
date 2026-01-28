@@ -1,5 +1,7 @@
 package com.monitor.backend.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -9,6 +11,8 @@ import java.util.Map;
 
 @Service
 public class DynamicSqlExecutor {
+
+    private static final Logger logger = LoggerFactory.getLogger(DynamicSqlExecutor.class);
 
     private final DataSourceManager dataSourceManager;
     private final SqlPlaceholderService placeholderService;
@@ -36,7 +40,7 @@ public class DynamicSqlExecutor {
         
         // 替换占位符
         String resolvedSql = placeholderService.resolvePlaceholders(sql, taskId);
-
+        logger.info("Executing scalar query: {}", resolvedSql);
         return jdbcTemplate.queryForObject(resolvedSql, Double.class);
     }
 
@@ -55,7 +59,7 @@ public class DynamicSqlExecutor {
 
         // 替换占位符
         String resolvedSql = placeholderService.resolvePlaceholders(sql, taskId);
-
+        logger.info("Executing query: {}", resolvedSql);
         return jdbcTemplate.queryForList(resolvedSql);
     }
 
@@ -67,7 +71,7 @@ public class DynamicSqlExecutor {
 
         // 替换工作流变量
         String resolvedSql = placeholderService.resolveWorkflowPlaceholders(sql, context);
-
+        logger.info("Executing query with context: {}", resolvedSql);
         return jdbcTemplate.queryForList(resolvedSql);
     }
 

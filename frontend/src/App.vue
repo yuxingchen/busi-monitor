@@ -256,31 +256,62 @@ const loadActiveAlarms = async () => {
 const connectWebSocket = () => {
   // 防止重复连接
   if (stompClient && stompClient.connected) {
-    console.log('WebSocket already connected')
+    console.log('[WebSocket] Already connected')
     return
   }
   if (stompClient) {
-    stompClient.deactivate()
+    try {
+      stompClient.deactivate()
+    } catch (e) {
+      console.warn('[WebSocket] Deactivate error:', e)
+    }
   }
+
+  console.log('[WebSocket] Connecting to:', WS_URL)
 
   const socket = new SockJS(WS_URL)
   stompClient = new Client({
     webSocketFactory: () => socket,
-    reconnectDelay: 5000,
+    reconnectDelay: 5000,        // 5秒后重连
+    heartbeatIncoming: 10000,    // 服务端心跳间隔
+    heartbeatOutgoing: 10000,    // 客户端心跳间隔
+    debug: (str) => {
+      // 仅在开发环境输出调试信息
+      if (import.meta.env.DEV) {
+        console.debug('[STOMP]', str)
+      }
+    },
     onConnect: () => {
+      console.log('[WebSocket] Connected successfully')
       wsConnected.value = true
+
       stompClient.subscribe('/topic/alarm', (message) => {
-        const alarm = JSON.parse(message.body)
-        handleAlarmEvent(alarm)
+        try {
+          const alarm = JSON.parse(message.body)
+          handleAlarmEvent(alarm)
+        } catch (e) {
+          console.error('[WebSocket] Parse message error:', e)
+        }
       })
     },
     onDisconnect: () => {
+      console.log('[WebSocket] Disconnected')
       wsConnected.value = false
     },
-    onStompError: () => {
+    onStompError: (frame) => {
+      console.error('[WebSocket] STOMP error:', frame.headers?.message || frame)
+      wsConnected.value = false
+    },
+    onWebSocketError: (event) => {
+      console.error('[WebSocket] WebSocket error:', event)
+      wsConnected.value = false
+    },
+    onWebSocketClose: (event) => {
+      console.log('[WebSocket] Connection closed:', event.code, event.reason)
       wsConnected.value = false
     }
   })
+
   stompClient.activate()
 }
 
@@ -349,18 +380,22 @@ const handleAlarmEvent = (alarm) => {
 const acknowledgeAlarm = async (alarm) => {
   try {
     await request.post(`/alarm/active/${alarm.id}/acknowledge`)
+    ElMessage.success('告警已确认')
     loadActiveAlarms()
   } catch (e) {
     console.error('Acknowledge failed:', e)
+    ElMessage.error('告警确认失败')
   }
 }
 
 const suppressAlarm = async (alarm) => {
   try {
     await request.post(`/alarm/active/${alarm.id}/suppress?minutes=30`)
+    ElMessage.success('告警已抑制')
     loadActiveAlarms()
   } catch (e) {
     console.error('Suppress failed:', e)
+    ElMessage.error('告警抑制失败')
   }
 }
 

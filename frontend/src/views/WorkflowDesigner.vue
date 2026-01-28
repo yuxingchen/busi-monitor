@@ -187,6 +187,8 @@
                       <div class="tooltip-item"><code>${now}</code> 当前时间</div>
                       <div class="tooltip-item"><code>${today}</code> 今天日期</div>
                       <div class="tooltip-item"><code>${yesterday}</code> 昨天日期</div>
+                      <div class="tooltip-item"><code>${yesterdayStart}</code> 昨天 00:00:00</div>
+                      <div class="tooltip-item"><code>${yesterdayEnd}</code> 昨天 23:59:59</div>
                       <div class="tooltip-item"><code>${lastRunTime}</code> 上次执行时间</div>
                       <div class="tooltip-item"><code>${todayStart}</code> 今天 00:00:00</div>
                       <div class="tooltip-item"><code>${todayEnd}</code> 今天 23:59:59</div>
@@ -402,6 +404,56 @@
               <el-button type="danger" size="small" @click="deleteNode">删除步骤</el-button>
             </el-form-item>
 
+            <!-- LOOP 聚合配置 -->
+            <div class="divider"></div>
+            <h5 style="margin: 8px 0; color: #606266;">聚合配置</h5>
+
+            <el-form-item>
+              <template #label>
+                <span>启用聚合</span>
+                <el-tooltip placement="right" effect="dark">
+                  <template #content>
+                    <div class="placeholder-tooltip">
+                      <div class="tooltip-title">聚合配置说明</div>
+                      <div class="tooltip-item">开启后将对循环结果进行分组聚合</div>
+                      <div class="tooltip-item">支持 SUM/COUNT/AVG/MAX/MIN</div>
+                      <div class="tooltip-item">类似 SQL 的 GROUP BY + 聚合函数</div>
+                    </div>
+                  </template>
+                  <el-icon class="label-tip-icon">
+                    <QuestionFilled />
+                  </el-icon>
+                </el-tooltip>
+              </template>
+              <el-switch v-model="loopConfig.aggregate.enabled" @change="updateLoopConfig" />
+            </el-form-item>
+
+            <template v-if="loopConfig.aggregate.enabled">
+              <el-form-item label="分组字段">
+                <el-input v-model="aggregateGroupByInput" placeholder="分组字段，多个用逗号分隔 (留空则全部聚合)"
+                  @change="updateAggregateGroupBy" />
+              </el-form-item>
+              <el-form-item label="聚合字段">
+                <div style="width: 100%;">
+                  <div v-for="(aggField, index) in loopConfig.aggregate.aggregateFields" :key="index"
+                    style="display: flex; gap: 8px; margin-bottom: 8px;">
+                    <el-input v-model="aggField.field" placeholder="字段名" style="flex: 1;" @change="updateLoopConfig" />
+                    <el-select v-model="aggField.method" style="width: 100px;" @change="updateLoopConfig">
+                      <el-option value="SUM" label="SUM" />
+                      <el-option value="COUNT" label="COUNT" />
+                      <el-option value="AVG" label="AVG" />
+                      <el-option value="MAX" label="MAX" />
+                      <el-option value="MIN" label="MIN" />
+                    </el-select>
+                    <el-input v-model="aggField.alias" placeholder="别名 (可选)" style="flex: 1;"
+                      @change="updateLoopConfig" />
+                    <el-button type="danger" :icon="Delete" circle size="small" @click="removeAggregateField(index)" />
+                  </div>
+                  <el-button type="primary" size="small" :icon="Plus" @click="addAggregateField">添加聚合字段</el-button>
+                </div>
+              </el-form-item>
+            </template>
+
             <!-- LOOP批处理配置 -->
             <div class="divider"></div>
             <h5 style="margin: 8px 0; color: #606266;">批处理配置</h5>
@@ -559,6 +611,7 @@ import { Controls } from '@vue-flow/controls'
 import { Plus, Check, Delete, VideoPlay, Coin, Link, Share, InfoFilled, Document, Refresh, QuestionFilled, Loading, Close } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../api/request'
+import { toJsonClean } from '../api/utils'
 
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
@@ -605,9 +658,15 @@ const loopConfig = ref({
   constantValue: '',
   separator: ',',
   variableRef: '',
-  loopSql: ''
+  loopSql: '',
+  aggregate: {
+    enabled: false,
+    groupByFields: [],
+    aggregateFields: []
+  }
 })
 const loopTestValue = ref('')  // 用于测试的循环值
+const aggregateGroupByInput = ref('')  // 分组字段输入框
 
 // 计算属性：解析常量配置
 const parsedConstants = computed(() => {
@@ -1352,7 +1411,7 @@ const confirmAddConstant = () => {
     return
   }
   const constants = { ...parsedConstants.value, [newConstKey.value.trim()]: newConstValue.value }
-  selectedNode.value.data.config = JSON.stringify({ constants })
+  selectedNode.value.data.config = toJsonClean({ constants })
   updateNode()
   newConstKey.value = ''
   newConstValue.value = ''
@@ -1362,7 +1421,7 @@ const confirmAddConstant = () => {
 // 更新常量值
 const updateConstant = (key, value) => {
   const constants = { ...parsedConstants.value, [key]: value }
-  selectedNode.value.data.config = JSON.stringify({ constants })
+  selectedNode.value.data.config = toJsonClean({ constants })
   updateNode()
 }
 
@@ -1370,7 +1429,7 @@ const updateConstant = (key, value) => {
 const removeConstant = (key) => {
   const constants = { ...parsedConstants.value }
   delete constants[key]
-  selectedNode.value.data.config = JSON.stringify({ constants })
+  selectedNode.value.data.config = toJsonClean({ constants })
   updateNode()
 }
 
@@ -1384,10 +1443,35 @@ const cancelAddConstant = () => {
 // 更新循环配置
 const updateLoopConfig = () => {
   if (!selectedNode.value || selectedNode.value.data.stepType !== 'LOOP') return
-  selectedNode.value.data.config = JSON.stringify(loopConfig.value)
+  selectedNode.value.data.config = toJsonClean(loopConfig.value)
   // 同步 loopSql 到 sqlScript 用于后端执行
   selectedNode.value.data.sqlScript = loopConfig.value.loopSql
   updateNode()
+}
+
+// 更新聚合分组字段
+const updateAggregateGroupBy = () => {
+  loopConfig.value.aggregate.groupByFields = aggregateGroupByInput.value
+    .split(',')
+    .map(s => s.trim())
+    .filter(s => s.length > 0)
+  updateLoopConfig()
+}
+
+// 添加聚合字段
+const addAggregateField = () => {
+  loopConfig.value.aggregate.aggregateFields.push({
+    field: '',
+    method: 'SUM',
+    alias: ''
+  })
+  updateLoopConfig()
+}
+
+// 删除聚合字段
+const removeAggregateField = (index) => {
+  loopConfig.value.aggregate.aggregateFields.splice(index, 1)
+  updateLoopConfig()
 }
 
 // 监听选中节点变化，同步 loopConfig
@@ -1400,10 +1484,14 @@ watch(selectedNode, (node) => {
         constantValue: config.constantValue || '',
         separator: config.separator || ',',
         variableRef: config.variableRef || '',
-        loopSql: config.loopSql || ''
+        loopSql: config.loopSql || '',
+        aggregate: config.aggregate || { enabled: false, groupByFields: [], aggregateFields: [] }
       }
+      // 同步分组字段到输入框
+      aggregateGroupByInput.value = (loopConfig.value.aggregate.groupByFields || []).join(',')
     } catch {
-      loopConfig.value = { loopSource: 'CONSTANT', constantValue: '', separator: ',', variableRef: '', loopSql: '' }
+      loopConfig.value = { loopSource: 'CONSTANT', constantValue: '', separator: ',', variableRef: '', loopSql: '', aggregate: { enabled: false, groupByFields: [], aggregateFields: [] } }
+      aggregateGroupByInput.value = ''
     }
   }
   // 切换节点时重置常量输入状态

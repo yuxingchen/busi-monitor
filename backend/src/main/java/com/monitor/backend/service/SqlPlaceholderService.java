@@ -24,6 +24,8 @@ import java.util.stream.Collectors;
  * - ${now} - 当前时间（精确到秒）
  * - ${today} - 今天日期
  * - ${yesterday} - 昨天日期
+ * - ${yesterdayStart} - 昨天 00:00:00
+ * - ${yesterdayEnd} - 昨天 23:59:59
  * - ${lastRunTime} - 上次执行时间（支持 taskId 或 workflowId）
  * - ${todayStart} - 今天 00:00:00
  * - ${todayEnd} - 今天 23:59:59
@@ -113,6 +115,12 @@ public class SqlPlaceholderService {
 
         // 昨天日期
         values.put("yesterday", yesterday.format(DATE_FORMATTER));
+
+        // 昨天 00:00:00
+        values.put("yesterdayStart", yesterday.atStartOfDay().format(DATETIME_FORMATTER));
+        
+        // 昨天 23:59:59
+        values.put("yesterdayEnd", yesterday.atTime(23, 59, 59).format(DATETIME_FORMATTER));
 
         // 今天 00:00:00
         values.put("todayStart", today.atStartOfDay().format(DATETIME_FORMATTER));
