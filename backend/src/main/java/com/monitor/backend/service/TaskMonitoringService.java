@@ -3,6 +3,8 @@ package com.monitor.backend.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.monitor.backend.alarm.AlarmContext;
 import com.monitor.backend.alarm.AlarmService;
+import com.monitor.backend.dto.CompareConfig;
+import com.monitor.backend.dto.CompareResult;
 import com.monitor.backend.dto.DatasetAlarmConfig;
 import com.monitor.backend.enums.AggregateMethod;
 import com.monitor.backend.enums.AlarmTriggerType;
@@ -35,18 +37,21 @@ public class TaskMonitoringService {
     private final DynamicSqlExecutor sqlExecutor;
     private final DynamicTableService dynamicTableService;
     private final AlarmService alarmService;
+    private final PeriodCompareService periodCompareService;
     private final ThreadPoolTaskScheduler taskScheduler;
     private final Map<Long, ScheduledFuture<?>> scheduledTasks = new ConcurrentHashMap<>();
     private final ObjectMapper objectMapper;
 
     public TaskMonitoringService(MonitorTaskMapper taskMapper, MonitorRecordMapper recordMapper,
                                  DynamicSqlExecutor sqlExecutor, DynamicTableService dynamicTableService,
-                                 AlarmService alarmService, ObjectMapper objectMapper) {
+                                 AlarmService alarmService, PeriodCompareService periodCompareService,
+                                 ObjectMapper objectMapper) {
         this.taskMapper = taskMapper;
         this.recordMapper = recordMapper;
         this.sqlExecutor = sqlExecutor;
         this.dynamicTableService = dynamicTableService;
         this.alarmService = alarmService;
+        this.periodCompareService = periodCompareService;
         this.objectMapper = objectMapper;
         this.taskScheduler = new ThreadPoolTaskScheduler();
         this.taskScheduler.setPoolSize(10);
@@ -159,7 +164,7 @@ public class TaskMonitoringService {
                 checkAlarm(task, null, resultSet);
             }
         } catch (Exception e) {
-            logger.error("Task execution failed: " + task.getName(), e);
+            logger.error("Task execution failed: {}", task.getName(), e);
             record.setIsSuccess(0);
             record.setErrorMessage(e.getMessage());
             recordMapper.insert(record);
@@ -214,6 +219,18 @@ public class TaskMonitoringService {
                 if (AlarmTriggerType.FIELD_VALUE.equals(triggerType)) {
                     // 字段值支持字符串比较
                     isAlarm = checkFieldValueAlarm(alarmConfig, resultSet, operator);
+                } else if (AlarmTriggerType.COMPARE_PERIOD.equals(triggerType)) {
+                    // 同比环比对比
+                    CompareConfig compareConfig = alarmConfig.getCompareConfig();
+                    if (compareConfig != null && Boolean.TRUE.equals(compareConfig.getEnabled())) {
+                        CompareResult compareResult = periodCompareService.compare(task.getId(), resultSet, compareConfig);
+                        if (compareResult != null && compareResult.isShouldAlert()) {
+                            isAlarm = true;
+                            // 将对比结果保存到extraParams中，供后续构建告警上下文使用
+                            currentValue = compareResult.getCurrentValue();
+                            thresholdValue = compareResult.getPreviousValue();
+                        }
+                    }
                 } else {
                     // ROW_COUNT 和 FIELD_AGG 使用数值比较
                     if (thresholdValue == null) {

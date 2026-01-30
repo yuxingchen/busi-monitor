@@ -1,6 +1,7 @@
 package com.monitor.backend.enums;
 
 import com.monitor.backend.alarm.AlarmContext;
+import lombok.Getter;
 
 import java.util.function.Function;
 
@@ -9,16 +10,28 @@ import java.util.function.Function;
  * 用于告警模板中的占位符替换
  */
 public enum AlarmTemplateVariable {
-    SERVER_NAME("${serverName}", "服务器名称", ctx -> ctx.getTaskName()),
+    SERVER_NAME("${serverName}", "服务器名称", AlarmContext::getServerName),
     VALUE("${value}", "当前值", ctx -> formatDouble(ctx.getCurrentValue())),
     THRESHOLD("${threshold}", "阈值", ctx -> formatDouble(ctx.getThresholdValue())),
-    TASK_NAME("${taskName}", "任务名称", ctx -> ctx.getTaskName()),
+    TASK_NAME("${taskName}", "任务名称", AlarmContext::getTaskName),
     TASK_ID("${taskId}", "任务ID", ctx -> ctx.getTaskId() != null ? ctx.getTaskId().toString() : null),
-    OPERATOR("${operator}", "比较运算符", ctx -> ctx.getOperator()),
-    TRIGGER_TYPE("${triggerType}", "触发类型", ctx -> ctx.getTriggerType()),
-    LEVEL("${level}", "告警级别", ctx -> AlarmLevel.fromString(ctx.getLevel()).name());
+    OPERATOR("${operator}", "比较运算符", AlarmContext::getOperator),
+    TRIGGER_TYPE("${triggerType}", "触发类型", AlarmContext::getTriggerType),
+    LEVEL("${level}", "告警级别", ctx -> AlarmLevel.fromString(ctx.getLevel()).name()),
+    TIME("${time}", "触发时间", ctx -> ctx.getTriggerTime() != null 
+            ? ctx.getTriggerTime().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) 
+            : ""),
+    IP("${ip}", "服务器IP", AlarmContext::getServerIp),
+    // 同比环比相关变量
+    PREVIOUS_VALUE("${previousValue}", "历史值", ctx -> formatDouble(ctx.getPreviousValue())),
+    CHANGE_VALUE("${changeValue}", "变化值", ctx -> formatDouble(ctx.getChangeValue())),
+    CHANGE_RATE("${changeRate}", "变化率(%)", ctx -> formatDouble(ctx.getChangeRate())),
+    PERIOD_LABEL("${periodLabel}", "对比周期", AlarmContext::getPeriodLabel),
+    ALERT_GROUPS("${alertGroups}", "触发分组明细", AlarmContext::getAlertGroupsStr);
 
+    @Getter
     private final String placeholder;
+    @Getter
     private final String description;
     private final Function<AlarmContext, String> valueExtractor;
 
@@ -26,14 +39,6 @@ public enum AlarmTemplateVariable {
         this.placeholder = placeholder;
         this.description = description;
         this.valueExtractor = valueExtractor;
-    }
-
-    public String getPlaceholder() {
-        return placeholder;
-    }
-
-    public String getDescription() {
-        return description;
     }
 
     /**

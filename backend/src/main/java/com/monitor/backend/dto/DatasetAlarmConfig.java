@@ -53,6 +53,9 @@ public class DatasetAlarmConfig {
     /** 字段分隔符（默认逗号） */
     private String fieldSeparator;
     
+    /** 同比环比配置 */
+    private CompareConfig compareConfig;
+    
     /**
      * 获取字段分隔符，默认返回逗号
      */

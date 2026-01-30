@@ -1,6 +1,7 @@
 package com.monitor.backend.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.monitor.backend.batch.BatchStepResolver;
 import com.monitor.backend.cache.CacheStrategy;
 import com.monitor.backend.component.MemoryJoinExecutor;
 import com.monitor.backend.component.WorkflowSqlParser;
@@ -24,6 +25,7 @@ import com.monitor.backend.util.DateTimeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.Job;
+import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.JobParametersBuilder;
 import org.springframework.batch.core.launch.JobLauncher;
@@ -179,8 +181,7 @@ public class WorkflowExecutorService {
 
         try {
             // ===== 1. 分析步骤依赖关系 =====
-            Map<String, com.monitor.backend.batch.BatchStepResolver.StepDependencyInfo> depMap =
-                    batchStepResolver.analyzeDependencies(steps);
+            Map<String, BatchStepResolver.StepDependencyInfo> depMap = batchStepResolver.analyzeDependencies(steps);
 
             // 按依赖层级分组
             List<List<WorkflowStep>> layers = batchStepResolver.groupByDependencyLevel(steps, depMap);
@@ -215,9 +216,7 @@ public class WorkflowExecutorService {
                     }
 
                     // 分析步骤执行模式
-                    com.monitor.backend.batch.BatchStepResolver.BatchStepInfo stepInfo =
-                            batchStepResolver.analyzeWithContext(step, availableVars);
-
+                    BatchStepResolver.BatchStepInfo stepInfo = batchStepResolver.analyzeWithContext(step, availableVars);
                     logger.info("步骤[{}] 执行模式: {}, 变量依赖: {}, 真实表: {}",
                             step.getName(), stepInfo.getExecutionMode(),
                             stepInfo.getContextVariables(), stepInfo.getRealTables());
@@ -233,7 +232,6 @@ public class WorkflowExecutorService {
                         case CONTEXT_ONLY ->
                             // 纯内存模式：降级到常规执行
                                 executeStep(step, context);
-                        default -> executeStep(step, context);
                     };
 
                     // 存入context供后续步骤使用
@@ -284,10 +282,8 @@ public class WorkflowExecutorService {
      * @param workflow  工作流配置
      * @return 查询结果列表
      */
-    private List<Map<String, Object>> executePureBatch(
-            com.monitor.backend.batch.BatchStepResolver.BatchStepInfo stepInfo,
-            WorkflowExecution execution,
-            Workflow workflow) throws Exception {
+    private List<Map<String, Object>> executePureBatch(BatchStepResolver.BatchStepInfo stepInfo,
+            WorkflowExecution execution, Workflow workflow) throws Exception {
 
         logger.info("执行纯批处理: step={}, table={}", stepInfo.getStepName(), stepInfo.getTableName());
 
@@ -309,7 +305,7 @@ public class WorkflowExecutorService {
                 .toJobParameters();
 
         // 同步执行Spring Batch Job
-        org.springframework.batch.core.JobExecution jobExecution = asyncJobLauncher.run(dataExtractionJob, params);
+        JobExecution jobExecution = asyncJobLauncher.run(dataExtractionJob, params);
 
         // 等待Job完成
         while (jobExecution.isRunning()) {

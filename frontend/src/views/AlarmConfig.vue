@@ -300,7 +300,38 @@
             <el-option v-for="opt in contentTypeOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="内容模板" required>
+        <el-form-item required>
+          <template #label>
+            <span>内容模板</span>
+            <el-tooltip placement="right" effect="dark" :popper-style="{ maxWidth: '420px' }">
+              <template #content>
+                <div style="font-weight: bold; color: #409EFF; margin-bottom: 6px;">模板变量说明</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2px 16px; font-size: 12px;">
+                  <div><code>${taskName}</code> 任务名称</div>
+                  <div><code>${taskId}</code> 任务ID</div>
+                  <div><code>${value}</code> 当前值</div>
+                  <div><code>${threshold}</code> 阈值</div>
+                  <div><code>${operator}</code> 运算符</div>
+                  <div><code>${triggerType}</code> 触发类型</div>
+                  <div><code>${level}</code> 告警级别</div>
+                  <div><code>${time}</code> 触发时间</div>
+                  <div><code>${ip}</code> 服务器IP</div>
+                  <div><code>${serverName}</code> 服务器名</div>
+                </div>
+                <div style="font-weight: bold; color: #409EFF; margin: 8px 0 6px;">同比环比变量</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2px 16px; font-size: 12px;">
+                  <div><code>${previousValue}</code> 历史值</div>
+                  <div><code>${changeValue}</code> 变化值</div>
+                  <div><code>${changeRate}</code> 变化率</div>
+                  <div><code>${periodLabel}</code> 对比周期</div>
+                  <div><code>${alertGroups}</code> 分组明细</div>
+                </div>
+              </template>
+              <el-icon style="margin-left: 4px; cursor: help; color: var(--el-color-primary);">
+                <QuestionFilled />
+              </el-icon>
+            </el-tooltip>
+          </template>
           <template v-if="editingTemplate.contentType === ContentTypeKey.MARKDOWN">
             <div class="md-editor-wrapper">
               <MdEditor v-model="editingTemplate.content" :preview="false"
@@ -317,17 +348,6 @@
         <el-form-item label="设为默认">
           <el-switch v-model="editingTemplate.isDefault" :active-value="1" :inactive-value="0" />
         </el-form-item>
-
-        <el-alert type="info" :closable="false" style="margin-top: 10px;">
-          <p><strong>可用变量：</strong></p>
-          <p><code>${taskName}</code> - 任务名称</p>
-          <p><code>${ip}</code> - 服务器 IP 地址</p>
-          <p><code>${serverName}</code> - 服务器名称</p>
-          <p><code>${value}</code> - 当前值</p>
-          <p><code>${threshold}</code> - 阈值</p>
-          <p><code>${time}</code> - 触发时间</p>
-          <p><code>${triggerType}</code> - 触发类型</p>
-        </el-alert>
       </el-form>
 
       <template #footer>

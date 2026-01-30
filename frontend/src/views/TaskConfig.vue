@@ -132,30 +132,52 @@
         <!-- 数据存储配置（存储模式或工作流模式时显示） -->
         <el-row :gutter="20" v-if="form.isStoreData === 1 || chartConfig.sourceType === 'WORKFLOW'">
           <el-col :span="8">
-            <el-form-item label="结果表名">
+            <el-form-item>
+              <template #label>
+                <span>结果表名</span>
+                <el-tooltip placement="top">
+                  <template #content>
+                    <div v-if="chartConfig.sourceType === 'WORKFLOW'">已关联工作流输出表</div>
+                    <div v-else>留空则使用默认名称</div>
+                  </template>
+                  <el-icon style="margin-left: 4px; cursor: help;">
+                    <QuestionFilled />
+                  </el-icon>
+                </el-tooltip>
+              </template>
               <el-input v-model="chartConfig.outputTable" :placeholder="`monitor_task_result_${form.id || 'N'}`"
                 :disabled="chartConfig.sourceType === 'WORKFLOW'">
                 <template #prepend>表名</template>
               </el-input>
-              <div class="form-tip-block" v-if="chartConfig.sourceType === 'WORKFLOW'">
-                <el-tag size="small" type="success">已关联工作流输出表</el-tag>
-              </div>
-              <div class="form-tip-block" v-else>留空则使用默认名称</div>
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="查询限制">
+            <el-form-item>
+              <template #label>
+                <span>查询限制</span>
+                <el-tooltip content="0或空表示不限制" placement="top">
+                  <el-icon style="margin-left: 4px; cursor: help;">
+                    <QuestionFilled />
+                  </el-icon>
+                </el-tooltip>
+              </template>
               <el-input-number v-model="chartConfig.queryLimit" :min="0" :max="100000" placeholder="不限制"
                 style="width: 100%" />
-              <div class="form-tip-block">0或空表示不限制</div>
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="索引字段">
+            <el-form-item>
+              <template #label>
+                <span>索引字段</span>
+                <el-tooltip content="选择经常用于查询的字段可提升性能" placement="top">
+                  <el-icon style="margin-left: 4px; cursor: help;">
+                    <QuestionFilled />
+                  </el-icon>
+                </el-tooltip>
+              </template>
               <el-select v-model="chartConfig.indexFields" multiple placeholder="选择需要建立索引的字段" style="width: 100%">
                 <el-option v-for="field in resultFields" :key="field" :label="fieldAlias(field)" :value="field" />
               </el-select>
-              <div class="form-tip-block">选择经常用于查询的字段可提升性能</div>
             </el-form-item>
           </el-col>
         </el-row>
@@ -374,6 +396,7 @@
                     <el-radio label="ROW_COUNT">记录条数</el-radio>
                     <el-radio label="FIELD_VALUE">字段值</el-radio>
                     <el-radio label="FIELD_AGG">字段聚合</el-radio>
+                    <el-radio label="COMPARE_PERIOD">同比环比</el-radio>
                   </el-radio-group>
                 </el-form-item>
 
@@ -397,8 +420,9 @@
                   </el-radio-group>
                 </el-form-item>
 
-                <!-- 阈值条件 - 数值类型 (非 FIELD_VALUE 或聚合模式) -->
-                <el-form-item label="阈值条件" v-if="alarmConfig.triggerType !== 'FIELD_VALUE'">
+                <!-- 阈值条件 - 数值类型 (ROW_COUNT 和 FIELD_AGG 使用) -->
+                <el-form-item label="阈值条件"
+                  v-if="alarmConfig.triggerType !== 'FIELD_VALUE' && alarmConfig.triggerType !== 'COMPARE_PERIOD'">
                   <div style="display: flex; align-items: center; gap: 10px;">
                     <span>当</span>
                     <span v-if="form.resultType === 'SCALAR'">查询结果</span>
@@ -416,7 +440,15 @@
                 </el-form-item>
 
                 <!-- 阈值条件 - 字符串类型 (FIELD_VALUE 模式) -->
-                <el-form-item label="阈值条件" v-if="alarmConfig.triggerType === 'FIELD_VALUE'">
+                <el-form-item v-if="alarmConfig.triggerType === 'FIELD_VALUE'">
+                  <template #label>
+                    <span>阈值条件</span>
+                    <el-tooltip content="支持字符串比较（包含/等于）和数值比较（大于/小于等），系统会自动判断" placement="top">
+                      <el-icon style="margin-left: 4px; cursor: help;">
+                        <QuestionFilled />
+                      </el-icon>
+                    </el-tooltip>
+                  </template>
                   <div style="display: flex; align-items: center; gap: 10px;">
                     <span>当字段值</span>
                     <el-select v-model="alarmConfig.operator" placeholder="操作符" style="width: 150px">
@@ -432,8 +464,154 @@
                     <el-input v-model="alarmConfig.thresholdStr" placeholder="阈值（字符串或数值）" style="width: 200px" />
                     <span>时触发报警</span>
                   </div>
-                  <div class="form-tip-block">提示：支持字符串比较（包含/等于）和数值比较（大于/小于等），系统会自动判断</div>
                 </el-form-item>
+
+                <!-- ========== 同比环比配置 ========== -->
+                <template v-if="alarmConfig.triggerType === 'COMPARE_PERIOD'">
+                  <el-form-item label="对比类型">
+                    <el-radio-group v-model="alarmConfig.compareConfig.compareType">
+                      <el-radio-button label="MOM">环比</el-radio-button>
+                      <el-radio-button label="YOY">同比</el-radio-button>
+                    </el-radio-group>
+                  </el-form-item>
+
+                  <el-form-item label="对比周期" v-if="alarmConfig.compareConfig.compareType === 'MOM'">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                      <el-input-number v-model="alarmConfig.compareConfig.periodCount" :min="1" :max="30"
+                        style="width: 100px" />
+                      <el-select v-model="alarmConfig.compareConfig.periodUnit" style="width: 100px">
+                        <el-option label="天" value="DAY" />
+                        <el-option label="周" value="WEEK" />
+                        <el-option label="月" value="MONTH" />
+                      </el-select>
+                      <span>前</span>
+                    </div>
+                  </el-form-item>
+
+                  <el-form-item label="对比字段">
+                    <el-select v-model="alarmConfig.compareConfig.compareField" placeholder="选择数值字段"
+                      style="width: 200px">
+                      <el-option v-for="field in resultFields" :key="field" :label="fieldAlias(field)" :value="field" />
+                    </el-select>
+                  </el-form-item>
+
+                  <el-form-item>
+                    <template #label>
+                      <span>变化阈值</span>
+                      <el-tooltip content="勾选“使用绝对值”则上涨或下跌都会触发告警" placement="top">
+                        <el-icon style="margin-left: 4px; cursor: help;">
+                          <QuestionFilled />
+                        </el-icon>
+                      </el-tooltip>
+                    </template>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                      <span>当</span>
+                      <el-select v-model="alarmConfig.compareConfig.changeType" style="width: 120px">
+                        <el-option label="变化率(%)" value="RATE" />
+                        <el-option label="变化值" value="VALUE" />
+                      </el-select>
+                      <el-select v-model="alarmConfig.compareConfig.changeOperator" style="width: 120px">
+                        <el-option label="大于 (>)" value=">" />
+                        <el-option label="大于等于 (>=)" value=">=" />
+                        <el-option label="小于 (<)" value="<" />
+                        <el-option label="小于等于 (<=)" value="<=" />
+                      </el-select>
+                      <el-input-number v-model="alarmConfig.compareConfig.changeThreshold" :min="0"
+                        style="width: 120px" />
+                      <el-checkbox v-model="alarmConfig.compareConfig.useAbsoluteValue">使用绝对值</el-checkbox>
+                    </div>
+                  </el-form-item>
+
+                  <el-form-item>
+                    <template #label>
+                      <span>对比模式</span>
+                      <el-tooltip placement="top">
+                        <template #content>
+                          <div>自动识别：根据数据结构自动选择</div>
+                          <div>简单对比：单值对比</div>
+                          <div>分组对比：按分组键逐条对比</div>
+                        </template>
+                        <el-icon style="margin-left: 4px; cursor: help;">
+                          <QuestionFilled />
+                        </el-icon>
+                      </el-tooltip>
+                    </template>
+                    <el-radio-group v-model="alarmConfig.compareConfig.compareMode">
+                      <el-radio-button label="AUTO">自动识别</el-radio-button>
+                      <el-radio-button label="SIMPLE">简单对比</el-radio-button>
+                      <el-radio-button label="GROUPED">分组对比</el-radio-button>
+                    </el-radio-group>
+                  </el-form-item>
+
+                  <!-- 分组对比时显示分组字段选择 -->
+                  <el-form-item v-if="alarmConfig.compareConfig.compareMode === 'GROUPED'">
+                    <template #label>
+                      <span>分组字段</span>
+                      <el-tooltip content="用于匹配当前数据与历史数据的分组键" placement="top">
+                        <el-icon style="margin-left: 4px; cursor: help;">
+                          <QuestionFilled />
+                        </el-icon>
+                      </el-tooltip>
+                    </template>
+                    <el-select v-model="alarmConfig.compareConfig.groupByFields" multiple placeholder="选择分组键字段"
+                      style="width: 400px">
+                      <el-option v-for="field in resultFields" :key="field" :label="fieldAlias(field)" :value="field" />
+                    </el-select>
+                  </el-form-item>
+
+                  <!-- 分组对比时显示告警模式 -->
+                  <template v-if="alarmConfig.compareConfig.compareMode === 'GROUPED'">
+                    <el-form-item>
+                      <template #label>
+                        <span>告警模式</span>
+                        <el-tooltip content="任一触发：只要有一个分组触发告警，就发送告警；全部触发：所有分组都触发告警，才发送告警" placement="top">
+                          <el-icon style="margin-left: 4px; cursor: help;">
+                            <QuestionFilled />
+                          </el-icon>
+                        </el-tooltip>
+                      </template>
+                      <el-radio-group v-model="alarmConfig.compareConfig.alertMode">
+                        <el-radio-button label="ANY">任一触发</el-radio-button>
+                        <el-radio-button label="ALL">全部触发</el-radio-button>
+                      </el-radio-group>
+                      <el-input-number v-model="alarmConfig.compareConfig.minAlertCount" :min="1"
+                        style="width: 100px; margin-left: 10px;" v-if="alarmConfig.compareConfig.alertMode === 'ANY'" />
+                      <span v-if="alarmConfig.compareConfig.alertMode === 'ANY'"
+                        style="margin-left: 5px; color: var(--theme-text-secondary);">个分组触发时告警</span>
+                    </el-form-item>
+
+                    <el-form-item>
+                      <template #label>
+                        <span>异常处理</span>
+                        <el-tooltip placement="top">
+                          <template #content>
+                            <div>历史缺失：分组在历史中不存在</div>
+                            <div>新增分组：当前新出现的分组</div>
+                          </template>
+                          <el-icon style="margin-left: 4px; cursor: help;">
+                            <QuestionFilled />
+                          </el-icon>
+                        </el-tooltip>
+                      </template>
+                      <div style="display: flex; align-items: center; gap: 20px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                          <span>历史缺失:</span>
+                          <el-select v-model="alarmConfig.compareConfig.handleMissing" style="width: 120px">
+                            <el-option label="跳过" value="SKIP" />
+                            <el-option label="触发告警" value="ALERT" />
+                          </el-select>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                          <span>新增分组:</span>
+                          <el-select v-model="alarmConfig.compareConfig.handleNew" style="width: 120px">
+                            <el-option label="跳过" value="SKIP" />
+                            <el-option label="触发告警" value="ALERT" />
+                          </el-select>
+                        </div>
+                      </div>
+                    </el-form-item>
+                  </template>
+                </template>
 
                 <!-- ========== 监控模板配置 ========== -->
                 <el-divider content-position="left">监控模板配置</el-divider>
@@ -454,12 +632,19 @@
 
                 <!-- DATASET 模板参数配置 -->
                 <template v-if="form.resultType === 'DATASET'">
-                  <el-form-item label="传递字段">
+                  <el-form-item>
+                    <template #label>
+                      <span>传递字段</span>
+                      <el-tooltip content="选中的字段值将作为 ${字段名} 传递给告警模板" placement="top">
+                        <el-icon style="margin-left: 4px; cursor: help;">
+                          <QuestionFilled />
+                        </el-icon>
+                      </el-tooltip>
+                    </template>
                     <el-select v-model="alarmConfig.templateFields" multiple placeholder="选择要传递到模板的字段"
                       style="width: 400px">
                       <el-option v-for="field in resultFields" :key="field" :label="fieldAlias(field)" :value="field" />
                     </el-select>
-                    <div class="form-tip-block">选中的字段值将作为 ${字段名} 传递给告警模板</div>
                   </el-form-item>
 
                   <el-form-item label="最大条数">
@@ -586,7 +771,7 @@ const alarmConfig = reactive({
   enabled: false,
   alarmTemplateId: null,
   channelIds: [],
-  triggerType: 'ROW_COUNT', // ROW_COUNT | FIELD_VALUE | FIELD_AGG
+  triggerType: 'ROW_COUNT', // ROW_COUNT | FIELD_VALUE | FIELD_AGG | COMPARE_PERIOD
   triggerField: '',
   aggregateMethod: 'SUM',
   operator: '>',
@@ -594,7 +779,26 @@ const alarmConfig = reactive({
   thresholdStr: '',  // 字符串阈值（FIELD_VALUE 时使用）
   templateFields: [],
   maxRows: 10,
-  fieldSeparator: ','
+  fieldSeparator: ',',
+  // 同比环比配置
+  compareConfig: {
+    enabled: true,
+    compareType: 'MOM',   // MOM=环比, YOY=同比
+    periodCount: 1,
+    periodUnit: 'DAY',    // DAY/WEEK/MONTH
+    compareMode: 'AUTO',  // AUTO/SIMPLE/GROUPED
+    compareField: '',
+    aggregateMethod: 'SUM',
+    groupByFields: [],
+    changeType: 'RATE',   // RATE=变化率, VALUE=变化值
+    changeOperator: '>',
+    changeThreshold: 10,
+    useAbsoluteValue: true,
+    alertMode: 'ANY',     // ANY=任一触发, ALL=全部触发
+    minAlertCount: 1,
+    handleMissing: 'SKIP', // SKIP=跳过, ALERT=触发告警
+    handleNew: 'SKIP'
+  }
 })
 
 // 获取触发条件类型的标签
@@ -784,6 +988,27 @@ const handleEdit = (row) => {
         maxRows: cfg.maxRows || 10,
         fieldSeparator: cfg.fieldSeparator || ','
       })
+      // 回填 compareConfig（同比环比配置）
+      if (cfg.compareConfig) {
+        Object.assign(alarmConfig.compareConfig, {
+          enabled: cfg.compareConfig.enabled ?? true,
+          compareType: cfg.compareConfig.compareType || 'MOM',
+          periodCount: cfg.compareConfig.periodCount || 1,
+          periodUnit: cfg.compareConfig.periodUnit || 'DAY',
+          compareMode: cfg.compareConfig.compareMode || 'AUTO',
+          compareField: cfg.compareConfig.compareField || '',
+          aggregateMethod: cfg.compareConfig.aggregateMethod || 'SUM',
+          groupByFields: cfg.compareConfig.groupByFields || [],
+          changeType: cfg.compareConfig.changeType || 'RATE',
+          changeOperator: cfg.compareConfig.changeOperator || '>',
+          changeThreshold: cfg.compareConfig.changeThreshold ?? 10,
+          useAbsoluteValue: cfg.compareConfig.useAbsoluteValue ?? true,
+          alertMode: cfg.compareConfig.alertMode || 'ANY',
+          minAlertCount: cfg.compareConfig.minAlertCount || 1,
+          handleMissing: cfg.compareConfig.handleMissing || 'SKIP',
+          handleNew: cfg.compareConfig.handleNew || 'SKIP'
+        })
+      }
     } catch (e) {
       // Reset if parse error
       Object.assign(alarmConfig, {
@@ -804,8 +1029,6 @@ const handleEdit = (row) => {
   testResult.value = null
   dialogVisible.value = true
 
-  // If editing, user might want to see fields immediately? 
-  // We can't unless we re-run SQL. Just keep it empty until they click 'Test Run'
 }
 
 const toggleActive = async (row) => {

@@ -287,9 +287,14 @@
               </template>
               <div v-for="(value, key) in parsedConstants" :key="key" class="constant-row">
                 <el-input :model-value="key" placeholder="键名" style="width: 40%; margin-right: 8px" disabled />
-                <el-input :model-value="value" placeholder="值" style="width: 50%; margin-right: 8px"
-                  @change="(val) => updateConstant(key, val)" />
-                <el-button type="danger" :icon="Delete" circle size="small" @click="removeConstant(key)" />
+                <el-input v-model="editingConstantValue" v-if="editingConstantKey === key" placeholder="值"
+                  style="width: 50%; margin-right: 8px" @blur="handleConstantBlur"
+                  @keyup.enter="confirmConstantEdit(key)" />
+                <el-input :model-value="value" v-else placeholder="值" style="width: 50%; margin-right: 8px"
+                  @focus="startEditConstant(key, value)" />
+                <el-button v-if="editingConstantKey === key" type="success" :icon="Check" circle size="small"
+                  @mousedown.prevent="confirmConstantEdit(key)" />
+                <el-button v-else type="danger" :icon="Delete" circle size="small" @click="removeConstant(key)" />
               </div>
               <!-- 新增常量输入行 -->
               <div v-if="showConstantInput" class="constant-row" style="margin-top: 8px;">
@@ -445,8 +450,6 @@
                       <el-option value="MAX" label="MAX" />
                       <el-option value="MIN" label="MIN" />
                     </el-select>
-                    <el-input v-model="aggField.alias" placeholder="别名 (可选)" style="flex: 1;"
-                      @change="updateLoopConfig" />
                     <el-button type="danger" :icon="Delete" circle size="small" @click="removeAggregateField(index)" />
                   </div>
                   <el-button type="primary" size="small" :icon="Plus" @click="addAggregateField">添加聚合字段</el-button>
@@ -651,6 +654,8 @@ const dragType = ref('')
 const newConstKey = ref('')
 const newConstValue = ref('')
 const showConstantInput = ref(false)  // 控制新增常量输入行的显示
+const editingConstantKey = ref(null)  // 追踪当前正在编辑的常量键名
+const editingConstantValue = ref('')  // 临时存储编辑中的常量值
 
 // LOOP 配置状态
 const loopConfig = ref({
@@ -1438,6 +1443,29 @@ const cancelAddConstant = () => {
   showConstantInput.value = false
   newConstKey.value = ''
   newConstValue.value = ''
+}
+
+// 开始编辑常量
+const startEditConstant = (key, value) => {
+  editingConstantKey.value = key
+  editingConstantValue.value = value
+}
+
+// 处理常量值输入框失焦
+const handleConstantBlur = () => {
+  // 使用 setTimeout 确保点击确认按钮时不会因为 blur 事件提前清除状态
+  setTimeout(() => {
+    editingConstantKey.value = null
+    editingConstantValue.value = ''
+  }, 150)
+}
+
+// 确认常量编辑
+const confirmConstantEdit = (key) => {
+  // 调用 updateConstant 保存修改
+  updateConstant(key, editingConstantValue.value)
+  editingConstantKey.value = null
+  editingConstantValue.value = ''
 }
 
 // 更新循环配置

@@ -6,6 +6,8 @@ import com.monitor.backend.constant.BatchDefaults;
 import com.monitor.backend.constant.PlaceholderPrefix;
 import com.monitor.backend.enums.WorkflowStepType;
 import com.monitor.backend.entity.WorkflowStep;
+import lombok.Data;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -22,7 +24,7 @@ import java.util.regex.Pattern;
  * - ID 列（用于分区）
  * - 分区 SQL（带 BETWEEN 条件）
  * </p>
- * 
+ *
  * @author Monitor System
  */
 @Component
@@ -36,7 +38,7 @@ public class BatchStepResolver {
             Pattern.CASE_INSENSITIVE);
 
     // 匹配常见的主键列名模式
-    private static final String[] COMMON_ID_COLUMNS = { "id", "pk_id", "order_id", "user_id", "record_id" };
+    private static final String[] COMMON_ID_COLUMNS = {"id", "pk_id", "order_id", "user_id", "record_id"};
 
     private final WorkflowSqlParser sqlParser;
 
@@ -50,14 +52,14 @@ public class BatchStepResolver {
      * 注意：此方法不判定执行模式，默认PURE_BATCH。
      * 如需判定执行模式，请使用 {@link #analyzeWithContext(WorkflowStep, Set)}
      * </p>
-     * 
+     *
      * @param step 工作流步骤
      * @return 批处理步骤信息
      */
     public BatchStepInfo analyze(WorkflowStep step) {
         return analyzeWithContext(step, new HashSet<>());
     }
-    
+
     /**
      * 分析工作流步骤，支持上下文变量识别和执行模式判定
      * <p>
@@ -75,8 +77,8 @@ public class BatchStepResolver {
      *   <li>FROM/JOIN子句中的表名匹配availableVariables</li>
      * </ul>
      * </p>
-     * 
-     * @param step 工作流步骤
+     *
+     * @param step               工作流步骤
      * @param availableVariables 当前可用的上下文变量名（来自前序步骤的resultVariable）
      * @return 批处理步骤信息（包含执行模式）
      */
@@ -101,14 +103,14 @@ public class BatchStepResolver {
         // 使用步骤配置或推断ID列
         String idColumn = resolveIdColumn(step, sql, tableName);
         info.setIdColumn(idColumn);
-        
+
         // 使用步骤配置的分区参数
         info.setPartitionCount(BatchDefaults.getPartitionCount(step.getPartitionCount()));
         info.setChunkSize(BatchDefaults.getChunkSize(step.getChunkSize()));
         info.setCacheStrategy(CacheStrategy.Type.fromCode(step.getCacheStrategy()).name());
 
         // ===== 执行模式判定 =====
-        
+
         // 1. 提取SQL中的${varName}格式变量引用
         Set<String> varRefs = extractVariableReferences(sql);
         Set<String> contextVars = new HashSet<>();
@@ -117,13 +119,13 @@ public class BatchStepResolver {
                 contextVars.add(ref);
             }
         }
-        
+
         // 2. 提取SQL中FROM/JOIN子句的所有表名
         Set<String> allTables = extractAllTableNames(sql);
-        
+
         // 调试日志：打印可用变量和提取的表名
         log.info("DEBUG availableVariables={}, allTables={}", availableVariables, allTables);
-        
+
         // 3. 检查表名是否匹配availableVariables（关键修复！）
         for (String tbl : allTables) {
             if (availableVariables.contains(tbl)) {
@@ -132,7 +134,7 @@ public class BatchStepResolver {
             }
         }
         info.setContextVariables(contextVars);
-        
+
         // 4. 真实表 = 所有表 - 上下文变量
         Set<String> realTables = new HashSet<>();
         for (String tbl : allTables) {
@@ -141,12 +143,12 @@ public class BatchStepResolver {
             }
         }
         info.setRealTables(realTables);
-        
+
         // 5. 判定执行模式
         if (contextVars.isEmpty()) {
             // 无变量依赖 → 纯批处理
             info.setExecutionMode(BatchStepInfo.ExecutionMode.PURE_BATCH);
-            
+
             // 构建分区 SQL
             String partitionedSql = buildPartitionedSql(sql, idColumn);
             info.setPartitionedSql(partitionedSql);
@@ -167,26 +169,28 @@ public class BatchStepResolver {
 
         return info;
     }
-    
+
     /**
      * 从SQL中提取所有表名（FROM和JOIN子句）
-     * 
+     *
      * @param sql SQL语句
      * @return 所有表名集合
      */
     private Set<String> extractAllTableNames(String sql) {
         Set<String> tables = new HashSet<>();
-        
+        if (StringUtils.isEmpty(sql)){
+            return tables;
+        }
         // 提取FROM子句的表名
         String mainTable = extractTableName(sql);
         if (mainTable != null) {
             tables.add(mainTable);
         }
-        
+
         // 提取JOIN子句的表名
         Pattern joinPattern = Pattern.compile(
-            "(?:LEFT|RIGHT|INNER|CROSS)?\\s*JOIN\\s+([`\\w]+\\.)?([`\\w]+)\\s+",
-            Pattern.CASE_INSENSITIVE
+                "(?:LEFT|RIGHT|INNER|CROSS)?\\s*JOIN\\s+([`\\w]+\\.)?([`\\w]+)\\s+",
+                Pattern.CASE_INSENSITIVE
         );
         Matcher matcher = joinPattern.matcher(sql);
         while (matcher.find()) {
@@ -196,13 +200,13 @@ public class BatchStepResolver {
                 tables.add(joinTable);
             }
         }
-        
+
         return tables;
     }
 
     /**
      * 分析多个工作流步骤，生成批处理执行计划
-     * 
+     *
      * @param steps 工作流步骤列表
      * @return 批处理执行计划
      */
@@ -265,7 +269,7 @@ public class BatchStepResolver {
             log.info("使用步骤配置的分区字段: {}", step.getIdColumn());
             return step.getIdColumn().trim();
         }
-        
+
         // 2. 自动推断
         return inferIdColumn(sql, tableName);
     }
@@ -291,7 +295,7 @@ public class BatchStepResolver {
 
         // 无法确定时抛出异常
         throw new RuntimeException(
-            String.format("无法自动识别表 '%s' 的分区字段，请在步骤配置中手动指定 'idColumn'", tableName));
+                String.format("无法自动识别表 '%s' 的分区字段，请在步骤配置中手动指定 'idColumn'", tableName));
     }
 
     /**
@@ -300,7 +304,7 @@ public class BatchStepResolver {
      * 在原 SQL 的 WHERE 子句中添加 ID 范围条件。
      * 如果没有 WHERE 子句，则添加 WHERE。
      * </p>
-     * 
+     *
      * @param sql      原始 SQL
      * @param idColumn ID 列名
      * @return 带分区条件的 SQL
@@ -337,7 +341,7 @@ public class BatchStepResolver {
     private int findInsertPosition(String sql, int startIndex) {
         String upperSql = sql.toUpperCase();
 
-        String[] keywords = { " ORDER BY ", " GROUP BY ", " LIMIT ", " HAVING " };
+        String[] keywords = {" ORDER BY ", " GROUP BY ", " LIMIT ", " HAVING "};
         int minIndex = sql.length();
 
         for (String keyword : keywords) {
@@ -387,7 +391,7 @@ public class BatchStepResolver {
 
     /**
      * 分析步骤间的依赖关系
-     * 
+     *
      * @param steps 工作流步骤列表
      * @return 步骤依赖信息映射（步骤名 -> 依赖信息）
      */
@@ -399,33 +403,45 @@ public class BatchStepResolver {
                 varToStep.put(step.getResultVariable(), step.getName());
             }
         }
-        
+
         // 2. 分析每个步骤的依赖
         Map<String, StepDependencyInfo> result = new HashMap<>();
-        
+
         for (WorkflowStep step : steps) {
             StepDependencyInfo info = new StepDependencyInfo();
             info.setStepName(step.getName());
             info.setResultVariable(step.getResultVariable());
             info.setStepOrder(step.getStepOrder());
-            
-            // 从SQL中提取变量引用
-            Set<String> refs = extractVariableReferences(step.getSqlScript());
-            
-            // 过滤出属于上游步骤的变量（排除内置变量）
-            Set<String> stepDeps = new java.util.HashSet<>();
+
+            Set<String> stepDeps = new HashSet<>();
+            String sql = step.getSqlScript();
+
+            // 从SQL中提取 ${varName} 格式的变量引用
+            Set<String> refs = extractVariableReferences(sql);
             for (String ref : refs) {
                 if (varToStep.containsKey(ref)) {
                     stepDeps.add(ref);
                 }
             }
+
+            // 从 FROM/JOIN 子句的表名中检测是否引用了上游步骤的变量
+            // 例如: SELECT * FROM orderData JOIN productData 
+            // 如果 orderData/productData 是前序步骤的 resultVariable，则构成依赖
+            Set<String> tableNames = extractAllTableNames(sql);
+            for (String tableName : tableNames) {
+                if (varToStep.containsKey(tableName)) {
+                    stepDeps.add(tableName);
+                    log.debug("依赖分析: 步骤[{}]的表名[{}]匹配上游变量", step.getName(), tableName);
+                }
+            }
+
             info.setDependsOn(stepDeps);
             result.put(step.getName(), info);
         }
-        
+
         // 3. 计算依赖层级
         calculateDependencyLevels(result, varToStep);
-        
+
         log.info("依赖分析完成: 共{}个步骤", result.size());
         return result;
     }
@@ -437,11 +453,11 @@ public class BatchStepResolver {
     private Set<String> extractVariableReferences(String sql) {
         Set<String> refs = new java.util.HashSet<>();
         if (sql == null) return refs;
-        
+
         // 正则匹配 ${xxx} 或 ${xxx.yyy}
         Pattern pattern = Pattern.compile("\\$\\{([a-zA-Z_][a-zA-Z0-9_]*)(\\.[a-zA-Z_][a-zA-Z0-9_]*)?\\}");
         Matcher matcher = pattern.matcher(sql);
-        
+
         while (matcher.find()) {
             String varName = matcher.group(1);
             // 排除内置变量
@@ -451,7 +467,6 @@ public class BatchStepResolver {
         }
         return refs;
     }
-
 
 
     /**
@@ -464,11 +479,11 @@ public class BatchStepResolver {
         boolean changed = true;
         int maxIterations = 100;
         int iteration = 0;
-        
+
         while (changed && iteration < maxIterations) {
             changed = false;
             iteration++;
-            
+
             for (StepDependencyInfo info : depMap.values()) {
                 if (info.getDependsOn().isEmpty()) {
                     // 无依赖，层级0
@@ -498,8 +513,8 @@ public class BatchStepResolver {
 
     /**
      * 按依赖层级分组步骤
-     * 
-     * @param steps 工作流步骤列表
+     *
+     * @param steps  工作流步骤列表
      * @param depMap 依赖信息映射
      * @return 按层级分组的步骤列表
      */
@@ -509,13 +524,13 @@ public class BatchStepResolver {
         for (StepDependencyInfo info : depMap.values()) {
             maxLevel = Math.max(maxLevel, info.getDependencyLevel());
         }
-        
+
         // 按层级分组
         List<List<WorkflowStep>> layers = new ArrayList<>();
         for (int level = 0; level <= maxLevel; level++) {
             layers.add(new ArrayList<>());
         }
-        
+
         for (WorkflowStep step : steps) {
             StepDependencyInfo info = depMap.get(step.getName());
             if (info != null) {
@@ -523,10 +538,10 @@ public class BatchStepResolver {
                 layers.get(level).add(step);
             }
         }
-        
+
         // 移除空层级
         layers.removeIf(List::isEmpty);
-        
+
         log.info("步骤分层完成: 共{}层", layers.size());
         return layers;
     }
@@ -536,25 +551,13 @@ public class BatchStepResolver {
     /**
      * 步骤依赖信息
      */
+    @Data
     public static class StepDependencyInfo {
         private String stepName;
         private String resultVariable;
         private Integer stepOrder;
         private Set<String> dependsOn = new java.util.HashSet<>();
         private int dependencyLevel = -1;
-
-        public String getStepName() { return stepName; }
-        public void setStepName(String stepName) { this.stepName = stepName; }
-        public String getResultVariable() { return resultVariable; }
-        public void setResultVariable(String resultVariable) { this.resultVariable = resultVariable; }
-        public Integer getStepOrder() { return stepOrder; }
-        public void setStepOrder(Integer stepOrder) { this.stepOrder = stepOrder; }
-        public Set<String> getDependsOn() { return dependsOn; }
-        public void setDependsOn(Set<String> dependsOn) { this.dependsOn = dependsOn; }
-        public int getDependencyLevel() { return dependencyLevel; }
-        public void setDependencyLevel(int dependencyLevel) { this.dependencyLevel = dependencyLevel; }
-        
-        public boolean hasDependency() { return !dependsOn.isEmpty(); }
     }
 
     /**
@@ -567,253 +570,123 @@ public class BatchStepResolver {
      * - 分区配置（分区数、chunk大小）
      * </p>
      */
+    @Data
     public static class BatchStepInfo {
-        
+
         // ========== 执行模式枚举 ==========
-        
+
         /**
          * 批处理执行模式
          */
         public enum ExecutionMode {
-            /** 纯批处理：无变量依赖，直接使用Spring Batch分区查询 */
+            /**
+             * 纯批处理：无变量依赖，直接使用Spring Batch分区查询
+             */
             PURE_BATCH,
-            
-            /** 混合模式：依赖上游变量 + 关联真实表，变量从context获取，真实表批量查询，最后内存JOIN */
+
+            /**
+             * 混合模式：依赖上游变量 + 关联真实表，变量从context获取，真实表批量查询，最后内存JOIN
+             */
             CONTEXT_BATCH,
-            
-            /** 纯内存模式：仅依赖变量表，使用parallelStream处理 */
+
+            /**
+             * 纯内存模式：仅依赖变量表，使用parallelStream处理
+             */
             CONTEXT_ONLY
         }
-        
+
         // ========== 基本信息 ==========
-        
-        /** 步骤ID */
+
+        /**
+         * 步骤ID
+         */
         private Long stepId;
-        
-        /** 步骤名称 */
+
+        /**
+         * 步骤名称
+         */
         private String stepName;
-        
-        /** 数据源ID */
+
+        /**
+         * 数据源ID
+         */
         private Long datasourceId;
-        
-        /** 结果变量名（存入context的key） */
+
+        /**
+         * 结果变量名（存入context的key）
+         */
         private String resultVariable;
-        
-        /** 主表名（可能是变量名或真实表名） */
+
+        /**
+         * 主表名（可能是变量名或真实表名）
+         */
         private String tableName;
-        
-        /** 分区ID列名 */
+
+        /**
+         * 分区ID列名
+         */
         private String idColumn;
-        
-        /** 原始SQL */
+
+        /**
+         * 原始SQL
+         */
         private String originalSql;
-        
-        /** 分区查询SQL模板 */
+
+        /**
+         * 分区查询SQL模板
+         */
         private String partitionedSql;
-        
-        /** 缓存键 */
+
+        /**
+         * 缓存键
+         */
         private String cacheKey;
-        
-        /** 分区数量 */
+
+        /**
+         * 分区数量
+         */
         private Integer partitionCount;
-        
-        /** 每批处理大小 */
+
+        /**
+         * 每批处理大小
+         */
         private Integer chunkSize;
-        
-        /** 缓存策略（FILE/REDIS/TEMP_TABLE） */
+
+        /**
+         * 缓存策略（FILE/REDIS/TEMP_TABLE）
+         */
         private String cacheStrategy;
-        
+
         // ========== 混合模式相关字段 ==========
-        
-        /** 执行模式 */
+
+        /**
+         * 执行模式
+         */
         private ExecutionMode executionMode = ExecutionMode.PURE_BATCH;
-        
-        /** 上下文变量名集合（来自前序步骤resultVariable的数据） */
+
+        /**
+         * 上下文变量名集合（来自前序步骤resultVariable的数据）
+         */
         private Set<String> contextVariables = new HashSet<>();
-        
-        /** 真实表名集合（需要从数据库查询的表） */
+
+        /**
+         * 真实表名集合（需要从数据库查询的表）
+         */
         private Set<String> realTables = new HashSet<>();
-        
-        /** SQL解析结果（用于内存JOIN） */
+
+        /**
+         * SQL解析结果（用于内存JOIN）
+         */
         private Object parseResult;
-        
-        // ========== Getters and Setters ==========
-        
-        public Long getStepId() {
-            return stepId;
-        }
-
-        public void setStepId(Long stepId) {
-            this.stepId = stepId;
-        }
-
-        public String getStepName() {
-            return stepName;
-        }
-
-        public void setStepName(String stepName) {
-            this.stepName = stepName;
-        }
-
-        public Long getDatasourceId() {
-            return datasourceId;
-        }
-
-        public void setDatasourceId(Long datasourceId) {
-            this.datasourceId = datasourceId;
-        }
-
-        public String getResultVariable() {
-            return resultVariable;
-        }
-
-        public void setResultVariable(String resultVariable) {
-            this.resultVariable = resultVariable;
-        }
-
-        public String getTableName() {
-            return tableName;
-        }
-
-        public void setTableName(String tableName) {
-            this.tableName = tableName;
-        }
-
-        public String getIdColumn() {
-            return idColumn;
-        }
-
-        public void setIdColumn(String idColumn) {
-            this.idColumn = idColumn;
-        }
-
-        public String getOriginalSql() {
-            return originalSql;
-        }
-
-        public void setOriginalSql(String originalSql) {
-            this.originalSql = originalSql;
-        }
-
-        public String getPartitionedSql() {
-            return partitionedSql;
-        }
-
-        public void setPartitionedSql(String partitionedSql) {
-            this.partitionedSql = partitionedSql;
-        }
-
-        public String getCacheKey() {
-            return cacheKey;
-        }
-
-        public void setCacheKey(String cacheKey) {
-            this.cacheKey = cacheKey;
-        }
-
-        public Integer getPartitionCount() {
-            return partitionCount;
-        }
-
-        public void setPartitionCount(Integer partitionCount) {
-            this.partitionCount = partitionCount;
-        }
-
-        public Integer getChunkSize() {
-            return chunkSize;
-        }
-
-        public void setChunkSize(Integer chunkSize) {
-            this.chunkSize = chunkSize;
-        }
-
-        public String getCacheStrategy() {
-            return cacheStrategy;
-        }
-
-        public void setCacheStrategy(String cacheStrategy) {
-            this.cacheStrategy = cacheStrategy;
-        }
-        
-        // ========== 混合模式 Getters and Setters ==========
-        
-        public ExecutionMode getExecutionMode() {
-            return executionMode;
-        }
-
-        public void setExecutionMode(ExecutionMode executionMode) {
-            this.executionMode = executionMode;
-        }
-
-        public Set<String> getContextVariables() {
-            return contextVariables;
-        }
-
-        public void setContextVariables(Set<String> contextVariables) {
-            this.contextVariables = contextVariables;
-        }
-
-        public Set<String> getRealTables() {
-            return realTables;
-        }
-
-        public void setRealTables(Set<String> realTables) {
-            this.realTables = realTables;
-        }
-
-        public Object getParseResult() {
-            return parseResult;
-        }
-
-        public void setParseResult(Object parseResult) {
-            this.parseResult = parseResult;
-        }
-        
-        /**
-         * 判断是否需要混合执行（有变量依赖）
-         */
-        public boolean requiresContextData() {
-            return !contextVariables.isEmpty();
-        }
-        
-        /**
-         * 判断是否需要批量查询真实表
-         */
-        public boolean requiresBatchQuery() {
-            return !realTables.isEmpty();
-        }
     }
 
     /**
      * 批处理执行计划
      */
+    @Data
     public static class BatchExecutionPlan {
         private List<BatchStepInfo> batchSteps;
         private List<WorkflowStep> joinSteps;
         private boolean hasJoinSteps;
-
-        public List<BatchStepInfo> getBatchSteps() {
-            return batchSteps;
-        }
-
-        public void setBatchSteps(List<BatchStepInfo> batchSteps) {
-            this.batchSteps = batchSteps;
-        }
-
-        public List<WorkflowStep> getJoinSteps() {
-            return joinSteps;
-        }
-
-        public void setJoinSteps(List<WorkflowStep> joinSteps) {
-            this.joinSteps = joinSteps;
-        }
-
-        public boolean isHasJoinSteps() {
-            return hasJoinSteps;
-        }
-
-        public void setHasJoinSteps(boolean hasJoinSteps) {
-            this.hasJoinSteps = hasJoinSteps;
-        }
     }
 }

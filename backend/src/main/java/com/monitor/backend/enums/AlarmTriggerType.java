@@ -12,7 +12,8 @@ public enum AlarmTriggerType {
     FIELD_AGG("FIELD_AGG", "字段聚合"),
     THRESHOLD("THRESHOLD", "阈值触发"),
     YOY("YOY", "同比"),
-    MOM("MOM", "环比");
+    MOM("MOM", "环比"),
+    COMPARE_PERIOD("COMPARE_PERIOD", "同比环比");
 
     private final String code;
     private final String description;

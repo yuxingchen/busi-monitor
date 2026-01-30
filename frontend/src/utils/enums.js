@@ -49,7 +49,8 @@ export const AlarmTriggerType = {
   FIELD_AGG: '字段聚合',
   THRESHOLD: '阈值触发',
   YOY: '同比',
-  MOM: '环比'
+  MOM: '环比',
+  COMPARE_PERIOD: '同比环比'
 }
 
 /**
@@ -145,6 +146,56 @@ export const AlarmContentType = {
   MARKDOWN: 'Markdown'
 }
 
+/**
+ * 同比环比对比类型
+ */
+export const CompareType = {
+  MOM: '环比',
+  YOY: '同比'
+}
+
+/**
+ * 对比周期单位
+ */
+export const PeriodUnit = {
+  DAY: '天',
+  WEEK: '周',
+  MONTH: '月'
+}
+
+/**
+ * 对比模式
+ */
+export const CompareMode = {
+  AUTO: '自动识别',
+  SIMPLE: '简单对比',
+  GROUPED: '分组对比'
+}
+
+/**
+ * 变化类型
+ */
+export const ChangeType = {
+  RATE: '变化率(%)',
+  VALUE: '变化值'
+}
+
+/**
+ * 分组告警模式
+ */
+export const AlertMode = {
+  ANY: '任一触发',
+  ALL: '全部触发'
+}
+
+/**
+ * 缺失数据处理方式
+ */
+export const HandleMissing = {
+  SKIP: '跳过',
+  ALERT: '触发告警'
+}
+
 // ========== 枚举键常量（用于代码中替代硬编码字符串）==========
 
 /** 告警渠道类型键 */
@@ -216,7 +267,13 @@ const ENUM_MAP = {
   MonitorTaskType,
   WorkflowStepType,
   AggregateMethod,
-  AlarmContentType
+  AlarmContentType,
+  CompareType,
+  PeriodUnit,
+  CompareMode,
+  ChangeType,
+  AlertMode,
+  HandleMissing
 }
 
 // ========== 通用转换方法 ==========
