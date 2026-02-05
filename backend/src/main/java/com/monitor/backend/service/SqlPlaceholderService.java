@@ -8,15 +8,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import com.monitor.backend.enums.TimePlaceholder;
 
 /**
  * SQL 占位符替换服务
@@ -55,11 +56,8 @@ public class SqlPlaceholderService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("\\$\\{([^}]+)\\}");
-    // 工作流变量模式: ${stepName.field} 或 ${stepName[index].field} 或 ${stepName.*.field}
     private static final Pattern WORKFLOW_VAR_PATTERN = Pattern
             .compile("^([a-zA-Z_][a-zA-Z0-9_]*)(?:\\[(\\d+|\\*)])?(?:\\.(.+))?$");
-    private static final DateTimeFormatter DATETIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // 默认的首次执行时间（任务从来没有执行过时使用）
     private static final String DEFAULT_LAST_RUN_TIME = "1970-01-01 00:00:00";
@@ -101,38 +99,58 @@ public class SqlPlaceholderService {
      * 构建所有占位符的值映射
      */
     private Map<String, String> buildPlaceholderValues(Long taskId) {
-        Map<String, String> values = new HashMap<>();
-
-        LocalDateTime now = DateTimeUtils.now();
-        LocalDate today = LocalDate.now();
-        LocalDate yesterday = today.minusDays(1);
-
-        // 当前时间
-        values.put("now", now.format(DATETIME_FORMATTER));
-
-        // 今天日期
-        values.put("today", today.format(DATE_FORMATTER));
-
-        // 昨天日期
-        values.put("yesterday", yesterday.format(DATE_FORMATTER));
-
-        // 昨天 00:00:00
-        values.put("yesterdayStart", yesterday.atStartOfDay().format(DATETIME_FORMATTER));
+        Map<String, String> values = TimePlaceholder.buildValues(DateTimeUtils.now());
         
-        // 昨天 23:59:59
-        values.put("yesterdayEnd", yesterday.atTime(23, 59, 59).format(DATETIME_FORMATTER));
-
-        // 今天 00:00:00
-        values.put("todayStart", today.atStartOfDay().format(DATETIME_FORMATTER));
-
-        // 今天 23:59:59
-        values.put("todayEnd", today.atTime(23, 59, 59).format(DATETIME_FORMATTER));
-
-        // 上次执行时间
-        String lastRunTime = getLastRunTime(taskId);
-        values.put("lastRunTime", lastRunTime);
-
+        // 上次执行时间（非时间计算，需要查询数据库）
+        values.put("lastRunTime", getLastRunTime(taskId));
+        
         return values;
+    }
+    
+    /**
+     * 构建历史时间占位符映射（用于同比环比查询）
+     * 将所有时间占位符偏移到指定的历史时间点
+     * 
+     * @param historyTime 历史时间点
+     * @return 占位符值映射
+     */
+    public Map<String, String> buildPlaceholderValuesForHistory(LocalDateTime historyTime) {
+        Map<String, String> values = TimePlaceholder.buildValues(historyTime);
+        
+        // lastRunTime 在历史查询中保持为默认值
+        values.put("lastRunTime", DEFAULT_LAST_RUN_TIME);
+        
+        return values;
+    }
+
+    
+    /**
+     * 解析历史时间SQL占位符
+     * 将SQL中的时间占位符替换为历史时间值
+     * 
+     * @param sql 原始SQL
+     * @param historyTime 历史时间点
+     * @return 替换后的SQL
+     */
+    public String resolvePlaceholdersForHistory(String sql, LocalDateTime historyTime) {
+        if (sql == null || sql.isEmpty()) {
+            return sql;
+        }
+        
+        Map<String, String> historyValues = buildPlaceholderValuesForHistory(historyTime);
+        
+        Matcher matcher = PLACEHOLDER_PATTERN.matcher(sql);
+        StringBuffer result = new StringBuffer();
+        
+        while (matcher.find()) {
+            String placeholder = matcher.group(1);
+            String value = historyValues.getOrDefault(placeholder, matcher.group(0));
+            matcher.appendReplacement(result, Matcher.quoteReplacement(value));
+        }
+        matcher.appendTail(result);
+        
+        logger.debug("Resolved history SQL: {}", result);
+        return result.toString();
     }
 
     /**
@@ -146,7 +164,7 @@ public class SqlPlaceholderService {
         try {
             LocalDateTime lastTime = recordMapper.findLastSuccessTime(taskId);
             if (lastTime != null) {
-                return lastTime.format(DATETIME_FORMATTER);
+                return lastTime.format(TimePlaceholder.DATETIME_FORMATTER);
             }
         } catch (Exception e) {
             // 忽略异常，返回默认值
@@ -276,7 +294,7 @@ public class SqlPlaceholderService {
         if (BatchDefaults.WILDCARD.equals(indexStr) && fieldName != null) {
             return rows.stream()
                     .map(row -> row.get(fieldName))
-                    .filter(v -> v != null)
+                    .filter(Objects::nonNull)
                     .map(v -> "'" + v.toString().replace("'", "''") + "'")
                     .collect(Collectors.joining(", "));
         }

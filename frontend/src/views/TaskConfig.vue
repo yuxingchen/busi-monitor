@@ -495,6 +495,22 @@
                     </el-select>
                   </el-form-item>
 
+                  <!-- 时间字段选择（非持久化任务时显示） -->
+                  <el-form-item v-if="form.isStoreData === 0">
+                    <template #label>
+                      <span>时间字段</span>
+                      <el-tooltip content="非持久化任务需指定SQL中用于时间过滤的字段，用于历史数据查询" placement="top">
+                        <el-icon style="margin-left: 4px; cursor: help;">
+                          <QuestionFilled />
+                        </el-icon>
+                      </el-tooltip>
+                    </template>
+                    <el-select v-model="alarmConfig.compareConfig.timeField" placeholder="选择时间字段（可选）"
+                      style="width: 200px" clearable>
+                      <el-option v-for="field in resultFields" :key="field" :label="fieldAlias(field)" :value="field" />
+                    </el-select>
+                  </el-form-item>
+
                   <el-form-item>
                     <template #label>
                       <span>变化阈值</span>
@@ -788,6 +804,7 @@ const alarmConfig = reactive({
     periodUnit: 'DAY',    // DAY/WEEK/MONTH
     compareMode: 'AUTO',  // AUTO/SIMPLE/GROUPED
     compareField: '',
+    timeField: '',        // 时间字段（非持久化任务用于历史数据查询）
     aggregateMethod: 'SUM',
     groupByFields: [],
     changeType: 'RATE',   // RATE=变化率, VALUE=变化值
@@ -858,6 +875,16 @@ const resultFields = computed(() => {
   if (chartConfig.groupByField) savedFields.add(chartConfig.groupByField)
   if (chartConfig.valueField) savedFields.add(chartConfig.valueField)
   return Array.from(savedFields)
+})
+
+// 监听测试结果变化，清理 fieldAlias 中不再存在的字段
+watch(testResult, (newResult) => {
+  if (newResult && newResult.length > 0) {
+    const currentFields = new Set(Object.keys(newResult[0]))
+    // 清理不再存在的 fieldAlias 键
+    const keysToRemove = Object.keys(chartConfig.fieldAlias).filter(k => !currentFields.has(k))
+    keysToRemove.forEach(key => delete chartConfig.fieldAlias[key])
+  }
 })
 
 // Helper for table mapping
@@ -997,6 +1024,7 @@ const handleEdit = (row) => {
           periodUnit: cfg.compareConfig.periodUnit || 'DAY',
           compareMode: cfg.compareConfig.compareMode || 'AUTO',
           compareField: cfg.compareConfig.compareField || '',
+          timeField: cfg.compareConfig.timeField || '',
           aggregateMethod: cfg.compareConfig.aggregateMethod || 'SUM',
           groupByFields: cfg.compareConfig.groupByFields || [],
           changeType: cfg.compareConfig.changeType || 'RATE',

@@ -57,6 +57,9 @@ public class CompareConfig {
     /** 新增分组处理: SKIP=跳过, ALERT=触发告警 */
     private String handleNew;
     
+    /** 时间字段名称（非持久化任务必填，用于查询历史数据时的时间筛选） */
+    private String timeField;
+    
     // ===== 默认值方法 =====
     
     public Integer getPeriodCount() {

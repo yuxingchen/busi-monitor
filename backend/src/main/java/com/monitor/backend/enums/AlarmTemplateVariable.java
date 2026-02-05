@@ -27,7 +27,8 @@ public enum AlarmTemplateVariable {
     CHANGE_VALUE("${changeValue}", "变化值", ctx -> formatDouble(ctx.getChangeValue())),
     CHANGE_RATE("${changeRate}", "变化率(%)", ctx -> formatDouble(ctx.getChangeRate())),
     PERIOD_LABEL("${periodLabel}", "对比周期", AlarmContext::getPeriodLabel),
-    ALERT_GROUPS("${alertGroups}", "触发分组明细", AlarmContext::getAlertGroupsStr);
+    ALERT_GROUPS("${alertGroups}", "触发分组明细", AlarmContext::getAlertGroupsStr),
+    ALERT_COUNT("${alertCount}", "触发分组数", AlarmContext::getAlertCountStr);
 
     @Getter
     private final String placeholder;

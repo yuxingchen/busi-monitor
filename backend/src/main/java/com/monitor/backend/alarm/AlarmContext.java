@@ -88,4 +88,15 @@ public class AlarmContext {
             .map(GroupCompareItem::format)
             .collect(Collectors.joining("; "));
     }
+    
+    /**
+     * 获取触发告警的分组数量字符串
+     */
+    public String getAlertCountStr() {
+        if (alertGroups == null || alertGroups.isEmpty()) {
+            return "0";
+        }
+        long count = alertGroups.stream().filter(GroupCompareItem::isAlert).count();
+        return String.valueOf(count);
+    }
 }

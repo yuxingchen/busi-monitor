@@ -201,6 +201,7 @@ public class TaskMonitoringService {
             AlarmTriggerType triggerType = AlarmTriggerType.fromCode(alarmConfig.getTriggerType());
             Double currentValue = null;
             Double thresholdValue = alarmConfig.getThreshold();
+            CompareResult savedCompareResult = null;
 
             // 根据结果类型和触发类型计算告警条件
             if (scalarValue != null) {
@@ -223,12 +224,13 @@ public class TaskMonitoringService {
                     // 同比环比对比
                     CompareConfig compareConfig = alarmConfig.getCompareConfig();
                     if (compareConfig != null && Boolean.TRUE.equals(compareConfig.getEnabled())) {
-                        CompareResult compareResult = periodCompareService.compare(task.getId(), resultSet, compareConfig);
+                        CompareResult compareResult = periodCompareService.compare(task, resultSet, compareConfig);
                         if (compareResult != null && compareResult.isShouldAlert()) {
                             isAlarm = true;
-                            // 将对比结果保存到extraParams中，供后续构建告警上下文使用
+                            // 保存完整对比结果供后续构建告警上下文使用
                             currentValue = compareResult.getCurrentValue();
                             thresholdValue = compareResult.getPreviousValue();
+                            savedCompareResult = compareResult;
                         }
                     }
                 } else {
@@ -263,6 +265,18 @@ public class TaskMonitoringService {
                 }
                 if (thresholdValue != null) {
                     context.setThresholdValue(thresholdValue);
+                }
+                
+                // 填充同比环比相关字段
+                if (savedCompareResult != null) {
+                    context.setPreviousValue(savedCompareResult.getPreviousValue());
+                    context.setChangeValue(savedCompareResult.getChangeValue());
+                    context.setChangeRate(savedCompareResult.getChangeRate());
+                    context.setPeriodLabel(savedCompareResult.getPeriodLabel());
+                    // 分组模式时设置告警分组明细
+                    if (savedCompareResult.getItems() != null) {
+                        context.setAlertGroups(savedCompareResult.getItems());
+                    }
                 }
 
                 // 设置告警模板ID
